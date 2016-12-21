@@ -132,27 +132,27 @@
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-core_2.10</artifactId>
+                    <artifactId>spark-core_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-sql_2.10</artifactId>
+                    <artifactId>spark-sql_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-streaming_2.10</artifactId>
+                    <artifactId>spark-streaming_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-hive_2.10</artifactId>
+                    <artifactId>spark-hive_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-repl_2.10</artifactId>
+                    <artifactId>spark-repl_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-yarn_2.10</artifactId>
+                    <artifactId>spark-yarn_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.hadoop</groupId>
@@ -192,27 +192,27 @@
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-core_2.10</artifactId>
+                    <artifactId>spark-core_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-sql_2.10</artifactId>
+                    <artifactId>spark-sql_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-streaming_2.10</artifactId>
+                    <artifactId>spark-streaming_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-hive_2.10</artifactId>
+                    <artifactId>spark-hive_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-repl_2.10</artifactId>
+                    <artifactId>spark-repl_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-yarn_2.10</artifactId>
+                    <artifactId>spark-yarn_2.11</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -228,27 +228,27 @@
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-core_2.10</artifactId>
+                    <artifactId>spark-core_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-sql_2.10</artifactId>
+                    <artifactId>spark-sql_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-streaming_2.10</artifactId>
+                    <artifactId>spark-streaming_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-hive_2.10</artifactId>
+                    <artifactId>spark-hive_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-repl_2.10</artifactId>
+                    <artifactId>spark-repl_2.11</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>org.apache.spark</groupId>
-                    <artifactId>spark-yarn_2.10</artifactId>
+                    <artifactId>spark-yarn_2.11</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

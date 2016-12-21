@@ -289,4 +289,18 @@
   <description>Size in characters of the maximum text message to be received by websocket. Defaults to 1024000</description>
 </property>
 
+<!--
+<property>
+  <name>com.zetaris.lightning.lightningConfFile</name>
+  <value>change me</value>
+  <description>file path for lightning configuration file</description>
+</property>
+
+<property>
+  <name>com.zetaris.lightning.metaStoreConfFile</name>
+  <value>change me</value>
+  <description>file path for lightning meta store property file</description>
+</property>
+-->
+
 </configuration>
