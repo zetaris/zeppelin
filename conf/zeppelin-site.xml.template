@@ -388,5 +388,18 @@
     <description>Hardcoding Application Server name to Prevent Fingerprinting</description>
 </property>
 -->
+<!--
+<property>
+  <name>com.zetaris.lightning.lightningConfFile</name>
+  <value>change me</value>
+  <description>file path for lightning configuration file</description>
+</property>
+
+<property>
+  <name>com.zetaris.lightning.metaStoreConfFile</name>
+  <value>change me</value>
+  <description>file path for lightning meta store property file</description>
+</property>
+-->  
 
 </configuration>
