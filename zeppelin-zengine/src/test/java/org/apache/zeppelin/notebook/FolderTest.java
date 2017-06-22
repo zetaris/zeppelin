@@ -19,6 +19,7 @@ package org.apache.zeppelin.notebook;
 
 import org.apache.zeppelin.interpreter.Interpreter;
 import org.apache.zeppelin.interpreter.InterpreterFactory;
+import org.apache.zeppelin.interpreter.InterpreterSettingManager;
 import org.apache.zeppelin.notebook.repo.NotebookRepo;
 import org.apache.zeppelin.scheduler.Scheduler;
 import org.apache.zeppelin.search.SearchService;
@@ -30,6 +31,8 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(MockitoJUnitRunner.class)
 public class FolderTest {
@@ -57,6 +60,9 @@ public class FolderTest {
   @Mock
   InterpreterFactory interpreterFactory;
 
+  @Mock
+  InterpreterSettingManager interpreterSettingManager;
+
   Folder folder;
 
   Note note1;
@@ -65,13 +71,13 @@ public class FolderTest {
 
   @Before
   public void createFolderAndNotes() {
-    note1 = new Note(repo, interpreterFactory, jobListenerFactory, index, credentials, noteEventListener);
+    note1 = new Note(repo, interpreterFactory, interpreterSettingManager, jobListenerFactory, index, credentials, noteEventListener);
     note1.setName("this/is/a/folder/note1");
 
-    note2 = new Note(repo, interpreterFactory, jobListenerFactory, index, credentials, noteEventListener);
+    note2 = new Note(repo, interpreterFactory, interpreterSettingManager, jobListenerFactory, index, credentials, noteEventListener);
     note2.setName("this/is/a/folder/note2");
 
-    note3 = new Note(repo, interpreterFactory, jobListenerFactory, index, credentials, noteEventListener);
+    note3 = new Note(repo, interpreterFactory, interpreterSettingManager, jobListenerFactory, index, credentials, noteEventListener);
     note3.setName("this/is/a/folder/note3");
 
     folder = new Folder("this/is/a/folder");
@@ -112,7 +118,7 @@ public class FolderTest {
 
   @Test
   public void addNoteTest() {
-    Note note4 = new Note(repo, interpreterFactory, jobListenerFactory, index, credentials, noteEventListener);
+    Note note4 = new Note(repo, interpreterFactory, interpreterSettingManager, jobListenerFactory, index, credentials, noteEventListener);
     note4.setName("this/is/a/folder/note4");
 
     folder.addNote(note4);
@@ -185,5 +191,24 @@ public class FolderTest {
     assertEquals("/", rootFolder.getName());
     assertEquals("a", aFolder.getName());
     assertEquals("b", abFolder.getName());
+  }
+
+  @Test
+  public void isTrashTest() {
+    Folder folder;
+    // Not trash
+    folder = new Folder(Folder.ROOT_FOLDER_ID);
+    assertFalse(folder.isTrash());
+    folder = new Folder("a");
+    assertFalse(folder.isTrash());
+    folder = new Folder("a/b");
+    assertFalse(folder.isTrash());
+    // trash
+    folder = new Folder(Folder.TRASH_FOLDER_ID);
+    assertTrue(folder.isTrash());
+    folder = new Folder(Folder.TRASH_FOLDER_ID + "/a");
+    assertTrue(folder.isTrash());
+    folder = new Folder(Folder.TRASH_FOLDER_ID + "/a/b");
+    assertTrue(folder.isTrash());
   }
 }

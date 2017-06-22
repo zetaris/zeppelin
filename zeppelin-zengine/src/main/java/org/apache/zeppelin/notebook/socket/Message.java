@@ -46,6 +46,13 @@ public class Message {
     NEW_NOTE,         // [c-s] create new notebook
     DEL_NOTE,         // [c-s] delete notebook
                       // @param id note id
+    REMOVE_FOLDER,
+    MOVE_NOTE_TO_TRASH,
+    MOVE_FOLDER_TO_TRASH,
+    RESTORE_FOLDER,
+    RESTORE_NOTE,
+    RESTORE_ALL,
+    EMPTY_TRASH,
     CLONE_NOTE,       // [c-s] clone new notebook
                       // @param id id of note to clone
                       // @param name name for the cloned note
@@ -54,6 +61,9 @@ public class Message {
     NOTE_UPDATE,
 
     NOTE_RENAME,
+
+    UPDATE_PERSONALIZED_MODE, // [c-s] update personalized mode (boolean)
+                              // @param note id and boolean personalized mode value
 
     FOLDER_RENAME,
 
@@ -136,7 +146,9 @@ public class Message {
     NOTE_REVISION,                // [c-s] get certain revision of note
                                   // @param noteId
                                   // @param revisionId
-
+    SET_NOTE_REVISION,            // [c-s] set current notebook head to this revision
+                                  // @param noteId
+                                  // @param revisionId
     APP_APPEND_OUTPUT,            // [s-c] append output
     APP_UPDATE_OUTPUT,            // [s-c] update (replace) output
     APP_LOAD,                     // [s-c] on app load
@@ -155,11 +167,16 @@ public class Message {
     GET_INTERPRETER_SETTINGS,     // [c-s] get interpreter settings
     INTERPRETER_SETTINGS,         // [s-c] interpreter settings
     ERROR_INFO,                   // [s-c] error information to be sent
+    SESSION_LOGOUT,               // [s-c] error information to be sent
     WATCHER,                      // [s-c] Change websocket to watcher mode.
     PARAGRAPH_ADDED,              // [s-c] paragraph is added
     PARAGRAPH_REMOVED,            // [s-c] paragraph deleted
     PARAGRAPH_MOVED,              // [s-c] paragraph moved
-    NOTE_UPDATED                  // [s-c] paragraph updated(name, config)
+    NOTE_UPDATED,                 // [s-c] paragraph updated(name, config)
+    RUN_ALL_PARAGRAPHS,           // [c-s] run all paragraphs
+    PARAGRAPH_EXECUTED_BY_SPELL,  // [c-s] paragraph was executed by spell
+    RUN_PARAGRAPH_USING_SPELL,     // [s-c] run paragraph using spell
+    PARAS_INFO                    // [s-c] paragraph runtime infos
   }
 
   public static final Message EMPTY = new Message(null);

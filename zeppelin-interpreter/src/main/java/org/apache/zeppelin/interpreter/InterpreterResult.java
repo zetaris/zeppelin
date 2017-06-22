@@ -50,7 +50,8 @@ public class InterpreterResult implements Serializable {
     TABLE,
     IMG,
     SVG,
-    NULL
+    NULL,
+    NETWORK
   }
 
   Code code;
@@ -94,6 +95,10 @@ public class InterpreterResult implements Serializable {
 
   public void add(Type type, String data) {
     msg.add(new InterpreterResultMessage(type, data));
+  }
+
+  public void add(InterpreterResultMessage interpreterResultMessage) {
+    msg.add(interpreterResultMessage);
   }
 
   public Code code() {

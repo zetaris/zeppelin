@@ -138,7 +138,7 @@ public class AzureNotebookRepo implements NotebookRepo {
     Gson gson = gsonBuilder.registerTypeAdapter(Date.class, new NotebookImportDeserializer())
         .create();
 
-    Note note = gson.fromJson(json, Note.class);
+    Note note = Note.fromJson(json);
 
     for (Paragraph p : note.getParagraphs()) {
       if (p.getStatus() == Job.Status.PENDING || p.getStatus() == Job.Status.RUNNING) {
@@ -249,5 +249,12 @@ public class AzureNotebookRepo implements NotebookRepo {
   @Override
   public void updateSettings(Map<String, String> settings, AuthenticationInfo subject) {
     LOG.warn("Method not implemented");
+  }
+
+  @Override
+  public Note setNoteRevision(String noteId, String revId, AuthenticationInfo subject)
+      throws IOException {
+    // Auto-generated method stub
+    return null;
   }
 }

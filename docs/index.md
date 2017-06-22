@@ -125,7 +125,7 @@ Join to our [Mailing list](https://zeppelin.apache.org/community.html) and repor
 
 * Getting Started
   * [Quick Start](./install/install.html) for basic instructions on installing Apache Zeppelin
-  * [Configuration](./install/install.html#apache-zeppelin-configuration) lists for Apache Zeppelin
+  * [Configuration](./install/configuration.html) lists for Apache Zeppelin
   * [Explore Apache Zeppelin UI](./quickstart/explorezeppelinui.html): basic components of Apache Zeppelin home
   * [Tutorial](./quickstart/tutorial.html): a short walk-through tutorial that uses Apache Spark backend
 * Basic Feature Guide
@@ -143,6 +143,7 @@ Join to our [Mailing list](https://zeppelin.apache.org/community.html) and repor
   * [Interpreter Installation](./manual/interpreterinstallation.html): Install not only community managed interpreters but also 3rd party interpreters
   * [Interpreter Dependency Management](./manual/dependencymanagement.html) when you include external libraries to interpreter
   * [Interpreter User Impersonation](./manual/userimpersonation.html) when you want to run interpreter as end user
+  * [Interpreter Execution Hooks](./manual/interpreterexechooks.html) to specify additional code to be executed by an interpreter at pre and post-paragraph code execution
 * Available Interpreters: currently, about 20 interpreters are available in Apache Zeppelin.
 
 ####Display System
@@ -152,7 +153,7 @@ Join to our [Mailing list](https://zeppelin.apache.org/community.html) and repor
   * [Angular (backend API)](./displaysystem/back-end-angular.html)
   * [Angular (frontend API)](./displaysystem/front-end-angular.html)
 
-####More
+#### More
 
 * Notebook Storage: a guide about saving notebooks to external storage
   * [Git Storage](./storage/storage.html#notebook-storage-in-local-git-repository)
@@ -160,15 +161,24 @@ Join to our [Mailing list](https://zeppelin.apache.org/community.html) and repor
   * [Azure Storage](./storage/storage.html#notebook-storage-in-azure)
   * [ZeppelinHub Storage](./storage/storage.html#storage-in-zeppelinhub)
 * REST API: available REST API list in Apache Zeppelin
+  * [Zeppelin server API](./rest-api/rest-zeppelin-server.html)
   * [Interpreter API](./rest-api/rest-interpreter.html)
   * [Notebook API](./rest-api/rest-notebook.html)
+  * [Notebook Repository API](./rest-api/rest-notebookRepo.html)
   * [Configuration API](./rest-api/rest-configuration.html)
   * [Credential API](./rest-api/rest-credential.html)
+  * [Helium API](./rest-api/rest-helium.html)
 * Security: available security support in Apache Zeppelin
   * [Authentication for NGINX](./security/authentication.html)
   * [Shiro Authentication](./security/shiroauthentication.html)
   * [Notebook Authorization](./security/notebook_authorization.html)
   * [Data Source Authorization](./security/datasource_authorization.html)
+  * [Helium Authorization](./security/helium_authorization.html)
+* Helium Framework (Experimental)
+  * [Writing Zeppelin Application](./development/writingzeppelinapplication.html)
+  * [Writing Zeppelin Spell](./development/writingzeppelinspell.html)
+  * [Writing Zeppelin Visualization: Basic](./development/writingzeppelinvisualization.html)
+  * [Writing Zeppelin Visualization: Transformation](./development/writingzeppelinvisualization_transformation.html)
 * Advanced
   * [Apache Zeppelin on Vagrant VM](./install/virtual_machine.html)
   * [Zeppelin on Spark Cluster Mode (Standalone via Docker)](./install/spark_cluster_mode.html#spark-standalone-mode)
@@ -177,7 +187,6 @@ Join to our [Mailing list](https://zeppelin.apache.org/community.html) and repor
   * [Zeppelin on CDH (via Docker)](./install/cdh.html)
 * Contribute
   * [Writing Zeppelin Interpreter](./development/writingzeppelininterpreter.html)
-  * [Writing Zeppelin Application (Experimental)](./development/writingzeppelinapplication.html)
   * [How to contribute (code)](./development/howtocontribute.html)
   * [How to contribute (documentation website)](./development/howtocontributewebsite.html)
 

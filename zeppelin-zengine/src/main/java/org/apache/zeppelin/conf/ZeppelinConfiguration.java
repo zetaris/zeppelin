@@ -28,7 +28,7 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 import org.apache.commons.configuration.tree.ConfigurationNode;
 import org.apache.commons.lang.StringUtils;
-import org.apache.zeppelin.notebook.repo.VFSNotebookRepo;
+import org.apache.zeppelin.notebook.repo.GitNotebookRepo;
 import org.apache.zeppelin.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +41,9 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   private static final String ZEPPELIN_SITE_XML = "zeppelin-site.xml";
   private static final long serialVersionUID = 4749305895693848035L;
   private static final Logger LOG = LoggerFactory.getLogger(ZeppelinConfiguration.class);
+
+  private static final String HELIUM_PACKAGE_DEFAULT_URL =
+      "https://s3.amazonaws.com/helium-package/helium.json";
   private static ZeppelinConfiguration conf;
 
   public ZeppelinConfiguration(URL url) throws ConfigurationException {
@@ -105,9 +108,13 @@ public class ZeppelinConfiguration extends XMLConfiguration {
         conf = new ZeppelinConfiguration();
       }
     }
-    
+
     LOG.info("Server Host: " + conf.getServerAddress());
-    LOG.info("Server Port: " + conf.getServerPort());
+    if (conf.useSsl() == false) {
+      LOG.info("Server Port: " + conf.getServerPort());
+    } else {
+      LOG.info("Server SSL Port: " + conf.getServerSslPort());
+    }
     LOG.info("Context Path: " + conf.getServerContextPath());
     LOG.info("Zeppelin Version: " + Util.getVersion());
 
@@ -117,11 +124,11 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   private String getStringValue(String name, String d) {
     List<ConfigurationNode> properties = getRootNode().getChildren();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.isEmpty()) {
       return d;
     }
     for (ConfigurationNode p : properties) {
-      if (p.getChildren("name") != null && p.getChildren("name").size() > 0
+      if (p.getChildren("name") != null && !p.getChildren("name").isEmpty()
           && name.equals(p.getChildren("name").get(0).getValue())) {
         return (String) p.getChildren("value").get(0).getValue();
       }
@@ -131,11 +138,11 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   private int getIntValue(String name, int d) {
     List<ConfigurationNode> properties = getRootNode().getChildren();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.isEmpty()) {
       return d;
     }
     for (ConfigurationNode p : properties) {
-      if (p.getChildren("name") != null && p.getChildren("name").size() > 0
+      if (p.getChildren("name") != null && !p.getChildren("name").isEmpty()
           && name.equals(p.getChildren("name").get(0).getValue())) {
         return Integer.parseInt((String) p.getChildren("value").get(0).getValue());
       }
@@ -145,11 +152,11 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   private long getLongValue(String name, long d) {
     List<ConfigurationNode> properties = getRootNode().getChildren();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.isEmpty()) {
       return d;
     }
     for (ConfigurationNode p : properties) {
-      if (p.getChildren("name") != null && p.getChildren("name").size() > 0
+      if (p.getChildren("name") != null && !p.getChildren("name").isEmpty()
           && name.equals(p.getChildren("name").get(0).getValue())) {
         return Long.parseLong((String) p.getChildren("value").get(0).getValue());
       }
@@ -159,11 +166,11 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   private float getFloatValue(String name, float d) {
     List<ConfigurationNode> properties = getRootNode().getChildren();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.isEmpty()) {
       return d;
     }
     for (ConfigurationNode p : properties) {
-      if (p.getChildren("name") != null && p.getChildren("name").size() > 0
+      if (p.getChildren("name") != null && !p.getChildren("name").isEmpty()
           && name.equals(p.getChildren("name").get(0).getValue())) {
         return Float.parseFloat((String) p.getChildren("value").get(0).getValue());
       }
@@ -173,11 +180,11 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   private boolean getBooleanValue(String name, boolean d) {
     List<ConfigurationNode> properties = getRootNode().getChildren();
-    if (properties == null || properties.size() == 0) {
+    if (properties == null || properties.isEmpty()) {
       return d;
     }
     for (ConfigurationNode p : properties) {
-      if (p.getChildren("name") != null && p.getChildren("name").size() > 0
+      if (p.getChildren("name") != null && !p.getChildren("name").isEmpty()
           && name.equals(p.getChildren("name").get(0).getValue())) {
         return Boolean.parseBoolean((String) p.getChildren("value").get(0).getValue());
       }
@@ -291,7 +298,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
       return getRelativeDir(
           String.format("%s/%s",
               getConfDir(),
-              getString(path)));
+              path));
     }
   }
 
@@ -314,13 +321,16 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   public String getTrustStorePath() {
     String path = getString(ConfVars.ZEPPELIN_SSL_TRUSTSTORE_PATH);
+    if (path == null) {
+      path = getKeyStorePath();
+    }
     if (path != null && path.startsWith("/") || isWindowsPath(path)) {
       return path;
     } else {
       return getRelativeDir(
           String.format("%s/%s",
               getConfDir(),
-              getString(path)));
+              path));
     }
   }
 
@@ -345,7 +355,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   public String getNotebookDir() {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_DIR);
   }
-  
+
   public String getUser() {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_USER);
   }
@@ -353,7 +363,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   public String getBucketName() {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_BUCKET);
   }
-  
+
   public String getEndpoint() {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_ENDPOINT);
   }
@@ -362,8 +372,32 @@ public class ZeppelinConfiguration extends XMLConfiguration {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_KMS_KEY_ID);
   }
 
+  public String getS3KMSKeyRegion() {
+    return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_KMS_KEY_REGION);
+  }
+
   public String getS3EncryptionMaterialsProviderClass() {
     return getString(ConfVars.ZEPPELIN_NOTEBOOK_S3_EMP);
+  }
+
+  public boolean isS3ServerSideEncryption() {
+    return getBoolean(ConfVars.ZEPPELIN_NOTEBOOK_S3_SSE);
+  }
+
+  public String getMongoUri() {
+    return getString(ConfVars.ZEPPELIN_NOTEBOOK_MONGO_URI);
+  }
+
+  public String getMongoDatabase() {
+    return getString(ConfVars.ZEPPELIN_NOTEBOOK_MONGO_DATABASE);
+  }
+
+  public String getMongoCollection() {
+    return getString(ConfVars.ZEPPELIN_NOTEBOOK_MONGO_COLLECTION);
+  }
+
+  public boolean getMongoAutoimport() {
+    return getBoolean(ConfVars.ZEPPELIN_NOTEBOOK_MONGO_AUTOIMPORT);
   }
 
   public String getInterpreterListPath() {
@@ -386,8 +420,20 @@ public class ZeppelinConfiguration extends XMLConfiguration {
     return getRelativeDir(String.format("%s/helium.json", getConfDir()));
   }
 
-  public String getHeliumDefaultLocalRegistryPath() {
-    return getRelativeDir(ConfVars.ZEPPELIN_HELIUM_LOCALREGISTRY_DEFAULT);
+  public String getHeliumRegistry() {
+    return getRelativeDir(ConfVars.ZEPPELIN_HELIUM_REGISTRY);
+  }
+
+  public String getHeliumNodeInstallerUrl() {
+    return getString(ConfVars.ZEPPELIN_HELIUM_NODE_INSTALLER_URL);
+  }
+
+  public String getHeliumNpmInstallerUrl() {
+    return getString(ConfVars.ZEPPELIN_HELIUM_NPM_INSTALLER_URL);
+  }
+
+  public String getHeliumYarnInstallerUrl() {
+    return getString(ConfVars.ZEPPELIN_HELIUM_YARNPKG_INSTALLER_URL);
   }
 
   public String getNotebookAuthorizationPath() {
@@ -415,6 +461,10 @@ public class ZeppelinConfiguration extends XMLConfiguration {
     return getRelativeDir(ConfVars.ZEPPELIN_INTERPRETER_LOCALREPO);
   }
 
+  public String getInterpreterMvnRepoPath() {
+    return getString(ConfVars.ZEPPELIN_INTERPRETER_DEP_MVNREPO);
+  }
+
   public String getRelativeDir(ConfVars c) {
     return getRelativeDir(getString(c));
   }
@@ -430,7 +480,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   public boolean isWindowsPath(String path){
     return path.matches("^[A-Za-z]:\\\\.*");
   }
-  
+
   public boolean isAnonymousAllowed() {
     return getBoolean(ConfVars.ZEPPELIN_ANONYMOUS_ALLOWED);
   }
@@ -438,7 +488,7 @@ public class ZeppelinConfiguration extends XMLConfiguration {
   public boolean isNotebokPublic() {
     return getBoolean(ConfVars.ZEPPELIN_NOTEBOOK_PUBLIC);
   }
-  
+
   public String getConfDir() {
     return getString(ConfVars.ZEPPELIN_CONF_DIR);
   }
@@ -454,6 +504,10 @@ public class ZeppelinConfiguration extends XMLConfiguration {
 
   public String getWebsocketMaxTextMessageSize() {
     return getString(ConfVars.ZEPPELIN_WEBSOCKET_MAX_TEXT_MESSAGE_SIZE);
+  }
+
+  public String getJettyName() {
+    return getString(ConfVars.ZEPPELIN_SERVER_JETTY_NAME);
   }
 
   public Map<String, String> dumpConfigurations(ZeppelinConfiguration conf,
@@ -528,10 +582,10 @@ public class ZeppelinConfiguration extends XMLConfiguration {
         + "org.apache.zeppelin.livy.LivySparkInterpreter,"
         + "org.apache.zeppelin.livy.LivySparkSQLInterpreter,"
         + "org.apache.zeppelin.livy.LivyPySparkInterpreter,"
+        + "org.apache.zeppelin.livy.LivyPySpark3Interpreter,"
         + "org.apache.zeppelin.livy.LivySparkRInterpreter,"
         + "org.apache.zeppelin.alluxio.AlluxioInterpreter,"
         + "org.apache.zeppelin.file.HDFSFileInterpreter,"
-        + "org.apache.zeppelin.postgresql.PostgreSqlInterpreter,"
         + "org.apache.zeppelin.pig.PigInterpreter,"
         + "org.apache.zeppelin.pig.PigQueryInterpreter,"
         + "org.apache.zeppelin.flink.FlinkInterpreter,"
@@ -551,15 +605,20 @@ public class ZeppelinConfiguration extends XMLConfiguration {
         + "org.apache.zeppelin.hbase.HbaseInterpreter,"
         + "org.apache.zeppelin.bigquery.BigQueryInterpreter,"
         + "org.apache.zeppelin.beam.BeamInterpreter,"
-        + "org.apache.zeppelin.scio.ScioInterpreter"),
+        + "org.apache.zeppelin.scio.ScioInterpreter,"
+        + "org.apache.zeppelin.groovy.GroovyInterpreter"
+        ),
     ZEPPELIN_INTERPRETER_JSON("zeppelin.interpreter.setting", "interpreter-setting.json"),
     ZEPPELIN_INTERPRETER_DIR("zeppelin.interpreter.dir", "interpreter"),
     ZEPPELIN_INTERPRETER_LOCALREPO("zeppelin.interpreter.localRepo", "local-repo"),
+    ZEPPELIN_INTERPRETER_DEP_MVNREPO("zeppelin.interpreter.dep.mvnRepo",
+        "http://repo1.maven.org/maven2/"),
     ZEPPELIN_INTERPRETER_CONNECT_TIMEOUT("zeppelin.interpreter.connect.timeout", 30000),
     ZEPPELIN_INTERPRETER_MAX_POOL_SIZE("zeppelin.interpreter.max.poolsize", 10),
     ZEPPELIN_INTERPRETER_GROUP_ORDER("zeppelin.interpreter.group.order", "spark,md,angular,sh,"
         + "livy,alluxio,file,psql,flink,python,ignite,lens,cassandra,geode,kylin,elasticsearch,"
-        + "scalding,jdbc,hbase,bigquery,beam,pig,scio"),
+        + "scalding,jdbc,hbase,bigquery,beam,pig,scio,groovy"),
+    ZEPPELIN_INTERPRETER_OUTPUT_LIMIT("zeppelin.interpreter.output.limit", 1024 * 100),
     ZEPPELIN_ENCODING("zeppelin.encoding", "UTF-8"),
     ZEPPELIN_NOTEBOOK_DIR("zeppelin.notebook.dir", "notebook"),
     // use specified notebook (id) as homescreen
@@ -571,10 +630,16 @@ public class ZeppelinConfiguration extends XMLConfiguration {
     ZEPPELIN_NOTEBOOK_S3_USER("zeppelin.notebook.s3.user", "user"),
     ZEPPELIN_NOTEBOOK_S3_EMP("zeppelin.notebook.s3.encryptionMaterialsProvider", null),
     ZEPPELIN_NOTEBOOK_S3_KMS_KEY_ID("zeppelin.notebook.s3.kmsKeyID", null),
+    ZEPPELIN_NOTEBOOK_S3_KMS_KEY_REGION("zeppelin.notebook.s3.kmsKeyRegion", null),
+    ZEPPELIN_NOTEBOOK_S3_SSE("zeppelin.notebook.s3.sse", false),
     ZEPPELIN_NOTEBOOK_AZURE_CONNECTION_STRING("zeppelin.notebook.azure.connectionString", null),
     ZEPPELIN_NOTEBOOK_AZURE_SHARE("zeppelin.notebook.azure.share", "zeppelin"),
     ZEPPELIN_NOTEBOOK_AZURE_USER("zeppelin.notebook.azure.user", "user"),
-    ZEPPELIN_NOTEBOOK_STORAGE("zeppelin.notebook.storage", VFSNotebookRepo.class.getName()),
+    ZEPPELIN_NOTEBOOK_MONGO_DATABASE("zeppelin.notebook.mongo.database", "zeppelin"),
+    ZEPPELIN_NOTEBOOK_MONGO_COLLECTION("zeppelin.notebook.mongo.collection", "notes"),
+    ZEPPELIN_NOTEBOOK_MONGO_URI("zeppelin.notebook.mongo.uri", "mongodb://localhost"),
+    ZEPPELIN_NOTEBOOK_MONGO_AUTOIMPORT("zeppelin.notebook.mongo.autoimport", false),
+    ZEPPELIN_NOTEBOOK_STORAGE("zeppelin.notebook.storage", GitNotebookRepo.class.getName()),
     ZEPPELIN_NOTEBOOK_ONE_WAY_SYNC("zeppelin.notebook.one.way.sync", false),
     // whether by default note is public or private
     ZEPPELIN_NOTEBOOK_PUBLIC("zeppelin.notebook.public", true),
@@ -585,13 +650,21 @@ public class ZeppelinConfiguration extends XMLConfiguration {
     ZEPPELIN_NOTEBOOK_AUTO_INTERPRETER_BINDING("zeppelin.notebook.autoInterpreterBinding", true),
     ZEPPELIN_CONF_DIR("zeppelin.conf.dir", "conf"),
     ZEPPELIN_DEP_LOCALREPO("zeppelin.dep.localrepo", "local-repo"),
-    ZEPPELIN_HELIUM_LOCALREGISTRY_DEFAULT("zeppelin.helium.localregistry.default", "helium"),
+    ZEPPELIN_HELIUM_REGISTRY("zeppelin.helium.registry", "helium," + HELIUM_PACKAGE_DEFAULT_URL),
+    ZEPPELIN_HELIUM_NODE_INSTALLER_URL("zeppelin.helium.node.installer.url",
+            "https://nodejs.org/dist/"),
+    ZEPPELIN_HELIUM_NPM_INSTALLER_URL("zeppelin.helium.npm.installer.url",
+            "http://registry.npmjs.org/"),
+    ZEPPELIN_HELIUM_YARNPKG_INSTALLER_URL("zeppelin.helium.yarnpkg.installer.url",
+            "https://github.com/yarnpkg/yarn/releases/download/"),
     // Allows a way to specify a ',' separated list of allowed origins for rest and websockets
     // i.e. http://localhost:8080
     ZEPPELIN_ALLOWED_ORIGINS("zeppelin.server.allowed.origins", "*"),
     ZEPPELIN_ANONYMOUS_ALLOWED("zeppelin.anonymous.allowed", true),
     ZEPPELIN_CREDENTIALS_PERSIST("zeppelin.credentials.persist", true),
-    ZEPPELIN_WEBSOCKET_MAX_TEXT_MESSAGE_SIZE("zeppelin.websocket.max.text.message.size", "1024000");
+    ZEPPELIN_WEBSOCKET_MAX_TEXT_MESSAGE_SIZE("zeppelin.websocket.max.text.message.size", "1024000"),
+    ZEPPELIN_SERVER_DEFAULT_DIR_ALLOWED("zeppelin.server.default.dir.allowed", false),
+    ZEPPELIN_SERVER_JETTY_NAME("zeppelin.server.jetty.name", null);
 
     private String varName;
     @SuppressWarnings("rawtypes")

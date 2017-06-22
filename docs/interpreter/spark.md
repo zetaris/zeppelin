@@ -104,9 +104,16 @@ You can also set other Spark properties which are not listed in the table. For a
     <td>Local repository for dependency loader</td>
   </tr>
   <tr>
-    <td>zeppelin.pyspark.python</td>
+    <td>PYSPARK_PYTHON</td>
     <td>python</td>
-    <td>Python command to run pyspark with</td>
+    <td>Python binary executable to use for PySpark in both driver and workers (default is <code>python</code>).
+            Property <code>spark.pyspark.python</code> take precedence if it is set</td>
+  </tr>
+  <tr>
+    <td>PYSPARK_DRIVER_PYTHON</td>
+    <td>python</td>
+    <td>Python binary executable to use for PySpark in driver only (default is <code>PYSPARK_PYTHON</code>).
+            Property <code>spark.pyspark.driver.python</code> take precedence if it is set</td>
   </tr>
   <tr>
     <td>zeppelin.spark.concurrentSQL</td>
@@ -132,6 +139,11 @@ You can also set other Spark properties which are not listed in the table. For a
     <td>zeppelin.spark.importImplicit</td>
     <td>true</td>
     <td>Import implicits, UDF collection, and sql if set true.</td>
+  </tr>
+  <tr>
+    <td>zeppelin.spark.enableSupportedVersionCheck</td>
+    <td>true</td>
+    <td>Do not change - developer only setting, not for production use</td>
   </tr>
 </table>
 

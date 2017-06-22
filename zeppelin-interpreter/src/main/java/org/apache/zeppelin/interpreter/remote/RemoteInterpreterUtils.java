@@ -63,4 +63,21 @@ public class RemoteInterpreterUtils {
       return false;
     }
   }
+
+  public static String getInterpreterSettingId(String intpGrpId) {
+    String settingId = null;
+    if (intpGrpId != null) {
+      int indexOfColon = intpGrpId.indexOf(":");
+      settingId = intpGrpId.substring(0, indexOfColon);
+    }
+    return settingId;
+  }
+
+  public static boolean isEnvString(String key) {
+    if (key == null || key.length() == 0) {
+      return false;
+    }
+
+    return key.matches("^[A-Z_0-9]*");
+  }
 }

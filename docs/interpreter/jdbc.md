@@ -118,6 +118,26 @@ The JDBC interpreter properties are defined by default like below.
     <td>gpadmin</td>
     <td>The JDBC user name</td>
   </tr>
+  <tr>
+    <td>default.precode</td>
+    <td></td>
+    <td>Some SQL which executes every time after initialization of the interpreter (see [Binding mode](../manual/interpreters.md#interpreter-binding-mode))</td>
+  </tr>
+  <tr>
+    <td>default.completer.schemaFilters</td>
+    <td></td>
+    <td>Сomma separated schema (schema = catalog = database) filters to get metadata for completions. Supports '%' symbol is equivalent to any set of characters. (ex. prod_v_%,public%,info)</td>
+  </tr>
+  <tr>
+    <td>default.completer.ttlInSeconds</td>
+    <td>120</td>
+    <td>Time to live sql completer in seconds (-1 to update everytime, 0 to disable update)</td>
+  </tr>
+  <tr>
+    <td>default.splitQueries</td>
+    <td>false</td>
+    <td>Each query is executed apart and returns the result</td>
+  </tr>
 </table>
 
 If you want to connect other databases such as `Mysql`, `Redshift` and `Hive`, you need to edit the property values.
@@ -159,6 +179,18 @@ There are more JDBC interpreter properties you can specify like below.
     <td>zeppelin.jdbc.keytab.location</td>
     <td>The path to the keytab file</td>
   </tr>
+  <tr>
+      <td>zeppelin.jdbc.auth.kerberos.proxy.enable</td>
+      <td>When auth type is Kerberos, enable/disable Kerberos proxy with the login user to get the connection. Default value is true.</td>
+  </tr>
+  <tr>
+    <td>default.jceks.file</td>
+    <td>jceks store path (e.g: jceks://file/tmp/zeppelin.jceks)</td>
+  </tr>
+  <tr>
+    <td>default.jceks.credentialKey</td>
+    <td>jceks credential key</td>
+  </tr>
 </table>
 
 You can also add more properties by using this [method](http://docs.oracle.com/javase/7/docs/api/java/sql/DriverManager.html#getConnection%28java.lang.String,%20java.util.Properties%29).
@@ -180,7 +212,7 @@ To bind the interpreters created in the interpreter setting page, click the gear
 
 <img src="../assets/themes/zeppelin/img/docs-img/click_interpreter_binding_button.png" width="600px" />
 
-Select(blue) or deselect(white) the interpreter buttons depending on your use cases. 
+Select(blue) or deselect(white) the interpreter buttons depending on your use cases.
 If you need to use more than one interpreter in the notebook, activate several buttons.
 Don't forget to click `Save` button, or you will face `Interpreter *** is not found` error.
 
@@ -209,6 +241,75 @@ SELECT name, country, performer
 FROM demo.performers
 WHERE name='{{"{{performer=Sheryl Crow|Doof|Fanfarlo|Los Paranoia"}}}}'
 ```
+### Usage *precode*
+You can set *precode* for each data source. Code runs once while opening the connection.
+
+##### Properties
+An example settings of interpreter for the two data sources, each of which has its *precode* parameter.
+
+<table class="table-configuration">
+  <tr>
+    <th>Property Name</th>
+    <th>Value</th>
+  </tr>
+  <tr>
+    <td>default.driver</td>
+    <td>org.postgresql.Driver</td>
+  </tr>
+  <tr>
+    <td>default.password</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td>default.url</td>
+    <td>jdbc:postgresql://localhost:5432/</td>
+  </tr>
+  <tr>
+    <td>default.user</td>
+    <td>postgres</td>
+  </tr>
+  <tr>
+    <td>default.precode</td>
+    <td>set search_path='test_path'</td>
+  </tr>
+  <tr>
+    <td>mysql.driver</td>
+    <td>com.mysql.jdbc.Driver</td>
+  </tr>
+  <tr>
+    <td>mysql.password</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td>mysql.url</td>
+    <td>jdbc:mysql://localhost:3306/</td>
+  </tr>
+  <tr>
+    <td>mysql.user</td>
+    <td>root</td>
+  </tr>
+  <tr>
+    <td>mysql.precode</td>
+    <td>set @v=12</td>
+  </tr>
+</table>
+
+##### Usage
+Test of execution *precode* for each data source.
+
+```sql
+%jdbc
+show search_path
+```
+Returns value of `search_path` which is set in the *default.precode*.
+
+
+```sql
+%jdbc(mysql)
+select @v
+```
+Returns value of `v` which is set in the *mysql.precode*.
+
 
 ## Examples
 Here are some examples you can refer to. Including the below connectors, you can connect every databases as long as it can be configured with it's JDBC driver.
@@ -389,7 +490,7 @@ Here are some examples you can refer to. Including the below connectors, you can
 
 [Maven Repository: com.amazonaws:aws-java-sdk-redshift](https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-redshift)
 
-### Apache Hive 
+### Apache Hive
 
 <img src="../assets/themes/zeppelin/img/docs-img/hive_setting.png" width="600px" />
 
@@ -415,6 +516,10 @@ Here are some examples you can refer to. Including the below connectors, you can
     <td>default.password</td>
     <td>hive_password</td>
   </tr>
+  <tr>
+    <td>default.proxy.user.property</td>
+    <td>Example value: hive.server2.proxy.user</td>
+  </tr>
 </table>
 
 [Apache Hive 1 JDBC Driver Docs](https://cwiki.apache.org/confluence/display/Hive/HiveServer2+Clients#HiveServer2Clients-JDBC)
@@ -437,6 +542,44 @@ Here are some examples you can refer to. Including the below connectors, you can
 </table>
 
 [Maven Repository : org.apache.hive:hive-jdbc](https://mvnrepository.com/artifact/org.apache.hive/hive-jdbc)
+
+##### Impersonation
+When Zeppelin server is running with authentication enabled, then the interpreter can utilize Hive's user proxy feature i.e. send extra parameter for creating and running a session ("hive.server2.proxy.user=": "${loggedInUser}"). This is particularly useful when multiple users are sharing a notebook.
+
+To enable this set following:
+
+  - `zeppelin.jdbc.auth.type` as `SIMPLE` or `KERBEROS` (if required) in the interpreter setting.
+  - `${prefix}.proxy.user.property` as `hive.server2.proxy.user`
+
+
+##### Sample configuration
+<table class="table-configuration">
+  <tr>
+    <th>Name</th>
+    <th>Value</th>
+  </tr>
+  <tr>
+    <td>hive.driver</td>
+    <td>org.apache.hive.jdbc.HiveDriver</td>
+  </tr>
+  <tr>
+    <td>hive.password</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>hive.url</td>
+    <td>jdbc:hive2://hive-server-host:2181/;serviceDiscoveryMode=zooKeeper;zooKeeperNamespace=hiveserver2</td>
+  </tr>
+  <tr>
+    <td>hive.proxy.user.property</td>
+    <td>hive.server2.proxy.user</td>
+  </tr>
+  <tr>
+    <td>zeppelin.jdbc.auth.type</td>
+    <td>SIMPLE</td>
+  </tr>
+</table>
+
 
 ### Apache Phoenix
 

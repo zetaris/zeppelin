@@ -16,20 +16,18 @@
  */
 
 package org.apache.zeppelin.spark;
+
 import org.apache.zeppelin.display.AngularObjectRegistry;
 import org.apache.zeppelin.display.GUI;
 import org.apache.zeppelin.interpreter.*;
 import org.apache.zeppelin.interpreter.InterpreterResult.Type;
 import org.apache.zeppelin.resource.LocalResourcePool;
 import org.apache.zeppelin.user.AuthenticationInfo;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runners.MethodSorters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -40,12 +38,15 @@ import static org.junit.Assert.*;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class PySparkInterpreterMatplotlibTest {
-  public static SparkInterpreter sparkInterpreter;
-  public static PySparkInterpreter pyspark;
-  public static InterpreterGroup intpGroup;
-  private File tmpDir;
-  public static Logger LOGGER = LoggerFactory.getLogger(PySparkInterpreterTest.class);
-  private InterpreterContext context;
+
+  @ClassRule
+  public static TemporaryFolder tmpDir = new TemporaryFolder();
+
+  static SparkInterpreter sparkInterpreter;
+  static PySparkInterpreter pyspark;
+  static InterpreterGroup intpGroup;
+  static Logger LOGGER = LoggerFactory.getLogger(PySparkInterpreterTest.class);
+  static InterpreterContext context;
   
   public static class AltPySparkInterpreter extends PySparkInterpreter {
     /**
@@ -79,7 +80,7 @@ public class PySparkInterpreterMatplotlibTest {
     }
   }
 
-  public static Properties getPySparkTestProperties() {
+  private static Properties getPySparkTestProperties() throws IOException {
     Properties p = new Properties();
     p.setProperty("master", "local[*]");
     p.setProperty("spark.app.name", "Zeppelin Test");
@@ -87,6 +88,7 @@ public class PySparkInterpreterMatplotlibTest {
     p.setProperty("zeppelin.spark.maxResult", "1000");
     p.setProperty("zeppelin.spark.importImplicit", "true");
     p.setProperty("zeppelin.pyspark.python", "python");
+    p.setProperty("zeppelin.dep.localrepo", tmpDir.newFolder().getAbsolutePath());
     return p;
   }
 
@@ -104,28 +106,20 @@ public class PySparkInterpreterMatplotlibTest {
     return version;
   }
 
-  @Before
-  public void setUp() throws Exception {
-    tmpDir = new File(System.getProperty("java.io.tmpdir") + "/ZeppelinLTest_" + System.currentTimeMillis());
-    System.setProperty("zeppelin.dep.localrepo", tmpDir.getAbsolutePath() + "/local-repo");
-    tmpDir.mkdirs();
-
+  @BeforeClass
+  public static void setUp() throws Exception {
     intpGroup = new InterpreterGroup();
     intpGroup.put("note", new LinkedList<Interpreter>());
 
-    if (sparkInterpreter == null) {
-      sparkInterpreter = new SparkInterpreter(getPySparkTestProperties());
-      intpGroup.get("note").add(sparkInterpreter);
-      sparkInterpreter.setInterpreterGroup(intpGroup);
-      sparkInterpreter.open();
-    }
+    sparkInterpreter = new SparkInterpreter(getPySparkTestProperties());
+    intpGroup.get("note").add(sparkInterpreter);
+    sparkInterpreter.setInterpreterGroup(intpGroup);
+    sparkInterpreter.open();
 
-    if (pyspark == null) {
-      pyspark = new AltPySparkInterpreter(getPySparkTestProperties());
-      intpGroup.get("note").add(pyspark);
-      pyspark.setInterpreterGroup(intpGroup);
-      pyspark.open();
-    }
+    pyspark = new AltPySparkInterpreter(getPySparkTestProperties());
+    intpGroup.get("note").add(pyspark);
+    pyspark.setInterpreterGroup(intpGroup);
+    pyspark.open();
 
     context = new InterpreterContext("note", "id", null, "title", "text",
       new AuthenticationInfo(),
@@ -137,22 +131,10 @@ public class PySparkInterpreterMatplotlibTest {
       new InterpreterOutput(null));
   }
 
-  @After
-  public void tearDown() throws Exception {
-    delete(tmpDir);
-  }
-
-  private void delete(File file) {
-    if (file.isFile()) file.delete();
-    else if (file.isDirectory()) {
-      File[] files = file.listFiles();
-      if (files != null && files.length > 0) {
-        for (File f : files) {
-          delete(f);
-        }
-      }
-      file.delete();
-    }
+  @AfterClass
+  public static void tearDown() {
+    pyspark.close();
+    sparkInterpreter.close();
   }
 
   @Test
@@ -233,7 +215,7 @@ public class PySparkInterpreterMatplotlibTest {
     // again but in a different color.
     ret = pyspark.interpret("plt.plot([1, 2, 3])", context);
     ret2 = pyspark.interpret("plt.show()", context);
-    assertNotSame(ret1.message().get(1).getData(), ret2.message().get(1).getData());
+    assertNotSame(ret1.message().get(0).getData(), ret2.message().get(0).getData());
   }
   
   @Test
@@ -246,7 +228,7 @@ public class PySparkInterpreterMatplotlibTest {
     ret = pyspark.interpret("plt.plot([1, 2, 3])", context);
     ret = pyspark.interpret("plt.show()", context);    
     assertEquals(ret.message().toString(), InterpreterResult.Code.SUCCESS, ret.code());
-    assertEquals(ret.message().toString(), Type.ANGULAR, ret.message().get(1).getType());
+    assertEquals(ret.message().toString(), Type.ANGULAR, ret.message().get(0).getType());
 
     // Check if the figure data is in the Angular Object Registry
     AngularObjectRegistry registry = context.getAngularObjectRegistry();

@@ -11,97 +11,140 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-'use strict';
-(function() {
 
-  angular.module('zeppelinWebApp').controller('HomeCtrl', HomeCtrl);
+angular.module('zeppelinWebApp').controller('HomeCtrl', HomeCtrl)
 
-  HomeCtrl.$inject = [
-    '$scope',
-    'noteListDataFactory',
-    'websocketMsgSrv',
-    '$rootScope',
-    'arrayOrderingSrv',
-    'ngToast',
-    'noteActionSrv'
-  ];
+function HomeCtrl ($scope, noteListDataFactory, websocketMsgSrv, $rootScope, arrayOrderingSrv,
+                  ngToast, noteActionSrv, TRASH_FOLDER_ID) {
+  'ngInject'
 
-  function HomeCtrl($scope, noteListDataFactory, websocketMsgSrv, $rootScope, arrayOrderingSrv,
-                    ngToast, noteActionSrv) {
-    ngToast.dismiss();
-    var vm = this;
-    vm.notes = noteListDataFactory;
-    vm.websocketMsgSrv = websocketMsgSrv;
-    vm.arrayOrderingSrv = arrayOrderingSrv;
+  ngToast.dismiss()
+  let vm = this
+  vm.notes = noteListDataFactory
+  vm.websocketMsgSrv = websocketMsgSrv
+  vm.arrayOrderingSrv = arrayOrderingSrv
 
-    vm.notebookHome = false;
-    if ($rootScope.ticket !== undefined) {
-      vm.staticHome = false;
-    } else {
-      vm.staticHome = true;
+  vm.notebookHome = false
+  vm.noteCustomHome = true
+  if ($rootScope.ticket !== undefined) {
+    vm.staticHome = false
+  } else {
+    vm.staticHome = true
+  }
+
+  $scope.isReloading = false
+  $scope.TRASH_FOLDER_ID = TRASH_FOLDER_ID
+  $scope.query = {q: ''}
+
+  $scope.initHome = function () {
+    websocketMsgSrv.getHomeNote()
+    vm.noteCustomHome = false
+  }
+
+  $scope.reloadNoteList = function () {
+    websocketMsgSrv.reloadAllNotesFromRepo()
+    $scope.isReloadingNotes = true
+  }
+
+  $scope.toggleFolderNode = function (node) {
+    node.hidden = !node.hidden
+  }
+
+  angular.element('#loginModal').on('hidden.bs.modal', function (e) {
+    $rootScope.$broadcast('initLoginValues')
+  })
+
+  /*
+   ** $scope.$on functions below
+   */
+
+  $scope.$on('setNoteMenu', function (event, notes) {
+    $scope.isReloadingNotes = false
+  })
+
+  $scope.$on('setNoteContent', function (event, note) {
+    if (vm.noteCustomHome) {
+      return
     }
 
-    $scope.isReloading = false;
+    if (note) {
+      vm.note = note
 
-    var initHome = function() {
-      websocketMsgSrv.getHomeNote();
-    };
+      // initialize look And Feel
+      $rootScope.$broadcast('setLookAndFeel', 'home')
 
-    initHome();
+      // make it read only
+      vm.viewOnly = true
 
-    $scope.reloadNoteList = function() {
-      websocketMsgSrv.reloadAllNotesFromRepo();
-      $scope.isReloadingNotes = true;
-    };
+      vm.notebookHome = true
+      vm.staticHome = false
+    } else {
+      vm.staticHome = true
+      vm.notebookHome = false
+    }
+  })
 
-    $scope.toggleFolderNode = function(node) {
-      node.hidden = !node.hidden;
-    };
-
-    angular.element('#loginModal').on('hidden.bs.modal', function(e) {
-      $rootScope.$broadcast('initLoginValues');
-    });
-
-    /*
-    ** $scope.$on functions below
-    */
-
-    $scope.$on('setNoteMenu', function(event, notes) {
-      $scope.isReloadingNotes = false;
-    });
-
-    $scope.$on('setNoteContent', function(event, note) {
-      if (note) {
-        vm.note = note;
-
-        // initialize look And Feel
-        $rootScope.$broadcast('setLookAndFeel', 'home');
-
-        // make it read only
-        vm.viewOnly = true;
-
-        vm.notebookHome = true;
-        vm.staticHome = false;
-      } else {
-        vm.staticHome = true;
-        vm.notebookHome = false;
-      }
-    });
-
-    $scope.renameNote = function(node) {
-      noteActionSrv.renameNote(node.id, node.path);
-    };
-
-    $scope.renameFolder = function(node) {
-      noteActionSrv.renameFolder(node.id);
-    };
-
-    $scope.removeNote = function(noteId) {
-      noteActionSrv.removeNote(noteId, false);
-    };
-
-    $scope.clearAllParagraphOutput = function(noteId) {
-      noteActionSrv.clearAllParagraphOutput(noteId);
-    };
+  $scope.renameNote = function (nodeId, nodePath) {
+    noteActionSrv.renameNote(nodeId, nodePath)
   }
-})();
+
+  $scope.moveNoteToTrash = function (noteId) {
+    noteActionSrv.moveNoteToTrash(noteId, false)
+  }
+
+  $scope.moveFolderToTrash = function (folderId) {
+    noteActionSrv.moveFolderToTrash(folderId)
+  }
+
+  $scope.restoreNote = function (noteId) {
+    websocketMsgSrv.restoreNote(noteId)
+  }
+
+  $scope.restoreFolder = function (folderId) {
+    websocketMsgSrv.restoreFolder(folderId)
+  }
+
+  $scope.restoreAll = function () {
+    noteActionSrv.restoreAll()
+  }
+
+  $scope.renameFolder = function (node) {
+    noteActionSrv.renameFolder(node.id)
+  }
+
+  $scope.removeNote = function (noteId) {
+    noteActionSrv.removeNote(noteId, false)
+  }
+
+  $scope.removeFolder = function (folderId) {
+    noteActionSrv.removeFolder(folderId)
+  }
+
+  $scope.emptyTrash = function () {
+    noteActionSrv.emptyTrash()
+  }
+
+  $scope.clearAllParagraphOutput = function (noteId) {
+    noteActionSrv.clearAllParagraphOutput(noteId)
+  }
+
+  $scope.isFilterNote = function (note) {
+    if (!$scope.query.q) {
+      return true
+    }
+
+    let noteName = note.name
+    if (noteName.toLowerCase().indexOf($scope.query.q.toLowerCase()) > -1) {
+      return true
+    }
+    return false
+  }
+
+  $scope.getNoteName = function (note) {
+    return arrayOrderingSrv.getNoteName(note)
+  }
+
+  $scope.noteComparator = function (note1, note2) {
+    return arrayOrderingSrv.noteComparator(note1, note2)
+  }
+}

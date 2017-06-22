@@ -165,17 +165,13 @@ public class VFSNotebookRepo implements NotebookRepo {
       throw new IOException(noteJson.getName().toString() + " not found");
     }
 
-    GsonBuilder gsonBuilder = new GsonBuilder();
-    gsonBuilder.setPrettyPrinting();
-    Gson gson = gsonBuilder.registerTypeAdapter(Date.class, new NotebookImportDeserializer())
-        .create();
 
     FileContent content = noteJson.getContent();
     InputStream ins = content.getInputStream();
     String json = IOUtils.toString(ins, conf.getString(ConfVars.ZEPPELIN_ENCODING));
     ins.close();
 
-    Note note = gson.fromJson(json, Note.class);
+    Note note = Note.fromJson(json);
 //    note.setReplLoader(replLoader);
 //    note.jobListenerFactory = jobListenerFactory;
 
@@ -329,6 +325,13 @@ public class VFSNotebookRepo implements NotebookRepo {
     } catch (IOException e) {
       LOG.error("Cannot update notebook directory", e);
     }
+  }
+
+  @Override
+  public Note setNoteRevision(String noteId, String revId, AuthenticationInfo subject)
+      throws IOException {
+    // Auto-generated method stub
+    return null;
   }
 
 }

@@ -18,16 +18,19 @@
 package org.apache.zeppelin.interpreter;
 
 
+import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import com.google.gson.annotations.SerializedName;
-import org.apache.zeppelin.annotation.ZeppelinApi;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.reflect.FieldUtils;
 import org.apache.zeppelin.annotation.Experimental;
+import org.apache.zeppelin.annotation.ZeppelinApi;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
 import org.apache.zeppelin.scheduler.Scheduler;
 import org.apache.zeppelin.scheduler.SchedulerFactory;
@@ -44,7 +47,6 @@ import org.slf4j.LoggerFactory;
  * open(), close(), interpret() is three the most important method you need to implement.
  * cancel(), getProgress(), completion() is good to have
  * getFormType(), getScheduler() determine Zeppelin's behavior
- *
  */
 public abstract class Interpreter {
 
@@ -63,19 +65,28 @@ public abstract class Interpreter {
   public abstract void close();
 
   /**
+   * Run precode if exists.
+   */
+  @ZeppelinApi
+  public InterpreterResult executePrecode(InterpreterContext interpreterContext) {
+    String simpleName = this.getClass().getSimpleName();
+    String precode = getProperty(String.format("zeppelin.%s.precode", simpleName));
+    if (StringUtils.isNotBlank(precode)) {
+      return interpret(precode, interpreterContext);
+    }
+    return null;
+  }
+
+  /**
    * Run code and return result, in synchronous way.
    *
    * @param st statements to run
-   * @param context
-   * @return
    */
   @ZeppelinApi
   public abstract InterpreterResult interpret(String st, InterpreterContext context);
 
   /**
    * Optionally implement the canceling routine to abort interpret() method
-   *
-   * @param context
    */
   @ZeppelinApi
   public abstract void cancel(InterpreterContext context);
@@ -85,7 +96,7 @@ public abstract class Interpreter {
    * see http://zeppelin.apache.org/docs/dynamicform.html
    *
    * @return FormType.SIMPLE enables simple pattern replacement (eg. Hello ${name=world}),
-   *         FormType.NATIVE handles form in API
+   * FormType.NATIVE handles form in API
    */
   @ZeppelinApi
   public abstract FormType getFormType();
@@ -93,7 +104,6 @@ public abstract class Interpreter {
   /**
    * get interpret() method running process in percentage.
    *
-   * @param context
    * @return number between 0-100
    */
   @ZeppelinApi
@@ -105,10 +115,12 @@ public abstract class Interpreter {
    *
    * @param buf statements
    * @param cursor cursor position in statements
+   * @param interpreterContext
    * @return list of possible completion. Return empty list if there're nothing to return.
    */
   @ZeppelinApi
-  public List<InterpreterCompletion> completion(String buf, int cursor) {
+  public List<InterpreterCompletion> completion(String buf, int cursor,
+      InterpreterContext interpreterContext)  {
     return null;
   }
 
@@ -121,26 +133,17 @@ public abstract class Interpreter {
    * SchedulerFactory.singleton().createOrGetFIFOScheduler()
    * SchedulerFactory.singleton().createOrGetParallelScheduler()
    *
-   *
-   * @return return scheduler instance.
-   *         This method can be called multiple times and have to return the same instance.
-   *         Can not return null.
+   * @return return scheduler instance. This method can be called multiple times and have to return
+   * the same instance. Can not return null.
    */
   @ZeppelinApi
   public Scheduler getScheduler() {
     return SchedulerFactory.singleton().createOrGetFIFOScheduler("interpreter_" + this.hashCode());
   }
 
-  /**
-   * Called when interpreter is no longer used.
-   */
-  @ZeppelinApi
-  public void destroy() {
-  }
-
   public static Logger logger = LoggerFactory.getLogger(Interpreter.class);
   private InterpreterGroup interpreterGroup;
-  private URL [] classloaderUrls;
+  private URL[] classloaderUrls;
   protected Properties property;
   private String userName;
 
@@ -172,6 +175,8 @@ public abstract class Interpreter {
         }
       }
     }
+
+    replaceContextParameters(p);
 
     return p;
   }
@@ -215,6 +220,7 @@ public abstract class Interpreter {
 
   /**
    * General function to register hook event
+   *
    * @param noteId - Note to bind hook to
    * @param event The type of event to hook to (pre_exec, post_exec)
    * @param cmd The code to be executed by the interpreter on given event
@@ -228,6 +234,7 @@ public abstract class Interpreter {
 
   /**
    * registerHook() wrapper for global scope
+   *
    * @param event The type of event to hook to (pre_exec, post_exec)
    * @param cmd The code to be executed by the interpreter on given event
    */
@@ -238,6 +245,7 @@ public abstract class Interpreter {
 
   /**
    * Get the hook code
+   *
    * @param noteId - Note to bind hook to
    * @param event The type of event to hook to (pre_exec, post_exec)
    */
@@ -250,6 +258,7 @@ public abstract class Interpreter {
 
   /**
    * getHook() wrapper for global scope
+   *
    * @param event The type of event to hook to (pre_exec, post_exec)
    */
   @Experimental
@@ -259,6 +268,7 @@ public abstract class Interpreter {
 
   /**
    * Unbind code from given hook event
+   *
    * @param noteId - Note to bind hook to
    * @param event The type of event to hook to (pre_exec, post_exec)
    */
@@ -271,13 +281,14 @@ public abstract class Interpreter {
 
   /**
    * unregisterHook() wrapper for global scope
+   *
    * @param event The type of event to hook to (pre_exec, post_exec)
    */
   @Experimental
   public void unregisterHook(String event) {
     unregisterHook(null, event);
   }
-  
+
   @ZeppelinApi
   public Interpreter getInterpreterInTheSameSessionByClassName(String className) {
     synchronized (interpreterGroup) {
@@ -306,6 +317,41 @@ public abstract class Interpreter {
     return null;
   }
 
+  /**
+   * Replace markers #{contextFieldName} by values from {@link InterpreterContext} fields
+   * with same name and marker #{user}. If value == null then replace by empty string.
+   */
+  private void replaceContextParameters(Properties properties) {
+    InterpreterContext interpreterContext = InterpreterContext.get();
+    if (interpreterContext != null) {
+      String markerTemplate = "#\\{%s\\}";
+      List<String> skipFields = Arrays.asList("paragraphTitle", "paragraphId", "paragraphText");
+      List typesToProcess = Arrays.asList(String.class, Double.class, Float.class, Short.class,
+          Byte.class, Character.class, Boolean.class, Integer.class, Long.class);
+      for (String key : properties.stringPropertyNames()) {
+        String p = properties.getProperty(key);
+        if (StringUtils.isNotEmpty(p)) {
+          for (Field field : InterpreterContext.class.getDeclaredFields()) {
+            Class clazz = field.getType();
+            if (!skipFields.contains(field.getName()) && (typesToProcess.contains(clazz)
+                || clazz.isPrimitive())) {
+              Object value = null;
+              try {
+                value = FieldUtils.readField(field, interpreterContext, true);
+              } catch (Exception e) {
+                logger.error("Cannot read value of field {0}", field.getName());
+              }
+              p = p.replaceAll(String.format(markerTemplate, field.getName()),
+                  value != null ? value.toString() : StringUtils.EMPTY);
+            }
+          }
+          p = p.replaceAll(String.format(markerTemplate, "user"),
+              StringUtils.defaultString(userName, StringUtils.EMPTY));
+          properties.setProperty(key, p);
+        }
+      }
+    }
+  }
 
   /**
    * Type of interpreter.
@@ -318,17 +364,16 @@ public abstract class Interpreter {
    * Represent registered interpreter class
    */
   public static class RegisteredInterpreter {
-    //@SerializedName("interpreterGroup")
+
     private String group;
-    //@SerializedName("interpreterName")
     private String name;
-    //@SerializedName("interpreterClassName")
     private String className;
     private boolean defaultInterpreter;
     private Map<String, InterpreterProperty> properties;
     private Map<String, Object> editor;
     private String path;
     private InterpreterOption option;
+    private InterpreterRunner runner;
 
     public RegisteredInterpreter(String name, String group, String className,
         Map<String, InterpreterProperty> properties) {
@@ -389,6 +434,10 @@ public abstract class Interpreter {
     public InterpreterOption getOption() {
       return option;
     }
+
+    public InterpreterRunner getRunner() {
+      return runner;
+    }
   }
 
   /**
@@ -401,34 +450,22 @@ public abstract class Interpreter {
   public static Map<String, RegisteredInterpreter> registeredInterpreters = Collections
       .synchronizedMap(new HashMap<String, RegisteredInterpreter>());
 
-  public static void register(String name, String className) {
-    register(name, name, className);
-  }
-
-  public static void register(String name, String group, String className) {
-    register(name, group, className, false, new HashMap<String, InterpreterProperty>());
-  }
-
+  @Deprecated
   public static void register(String name, String group, String className,
       Map<String, InterpreterProperty> properties) {
     register(name, group, className, false, properties);
-  }
-
-  public static void register(String name, String group, String className,
-      boolean defaultInterpreter) {
-    register(name, group, className, defaultInterpreter,
-        new HashMap<String, InterpreterProperty>());
   }
 
   @Deprecated
   public static void register(String name, String group, String className,
       boolean defaultInterpreter, Map<String, InterpreterProperty> properties) {
     logger.warn("Static initialization is deprecated for interpreter {}, You should change it " +
-                     "to use interpreter-setting.json in your jar or " +
-                     "interpreter/{interpreter}/interpreter-setting.json", name);
+        "to use interpreter-setting.json in your jar or " +
+        "interpreter/{interpreter}/interpreter-setting.json", name);
     register(new RegisteredInterpreter(name, group, className, defaultInterpreter, properties));
   }
 
+  @Deprecated
   public static void register(RegisteredInterpreter registeredInterpreter) {
     String interpreterKey = registeredInterpreter.getInterpreterKey();
     if (!registeredInterpreters.containsKey(interpreterKey)) {

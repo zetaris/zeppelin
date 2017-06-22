@@ -12,163 +12,165 @@
  * limitations under the License.
  */
 
-'use strict';
-
-var zeppelin = zeppelin || {};
-
 /**
- * Base class for visualization
+ * Base class for visualization.
  */
-zeppelin.Visualization = function(targetEl, config) {
-  this.targetEl = targetEl;
-  this.config = config;
-  this._dirty = false;
-  this._active = false;
-  this._emitter;
-};
-
-/**
- * get transformation
- */
-zeppelin.Visualization.prototype.getTransformation = function() {
-  // override this
-};
-
-/**
- * Method will be invoked when data or configuration changed
- */
-zeppelin.Visualization.prototype.render = function(tableData) {
-  // override this
-};
-
-/**
- * Refresh visualization.
- */
-zeppelin.Visualization.prototype.refresh = function() {
-  // override this
-};
-
-/**
- * Activate. invoked when visualization is selected
- */
-zeppelin.Visualization.prototype.activate = function() {
-  if (!this._active || this._dirty) {
-    this.refresh();
-    this._dirty = false;
-  }
-  this._active = true;
-};
-
-/**
- * Activate. invoked when visualization is de selected
- */
-zeppelin.Visualization.prototype.deactivate = function() {
-  this._active = false;
-};
-
-/**
- * Is active
- */
-zeppelin.Visualization.prototype.isActive = function() {
-  return this._active;
-};
-
-/**
- * When window or paragraph is resized
- */
-zeppelin.Visualization.prototype.resize = function() {
-  if (this.isActive()) {
-    this.refresh();
-  } else {
-    this._dirty = true;
-  }
-};
-
-/**
- * Set new config
- */
-zeppelin.Visualization.prototype.setConfig = function(config) {
-  this.config = config;
-  if (this.isActive()) {
-    this.refresh();
-  } else {
-    this._dirty = true;
-  }
-};
-
-/**
- * Emit config. config will sent to server and saved.
- */
-zeppelin.Visualization.prototype.emitConfig = function(config) {
-  this._emitter(config);
-};
-
-/**
- * method will be invoked when visualization need to be destroyed.
- * Don't need to destroy this.targetEl.
- */
-zeppelin.Visualization.prototype.destroy = function() {
-  // override this
-};
-
-/**
- * return {
- *   template : angular template string or url (url should end with .html),
- *   scope : an object to bind to template scope
- * }
- */
-zeppelin.Visualization.prototype.getSetting = function() {
-  // override this
-};
-
-/**
- * render setting
- */
-zeppelin.Visualization.prototype.renderSetting = function(targetEl) {
-  var setting = this.getSetting();
-  if (!setting) {
-    return;
+export default class Visualization {
+  constructor (targetEl, config) {
+    this.targetEl = targetEl
+    this.config = config
+    this._dirty = false
+    this._active = false
+    this._emitter = () => {}
   }
 
-  // already readered
-  if (this._scope) {
-    var self = this;
-    this._scope.$apply(function() {
-      for (var k in setting.scope) {
-        self._scope[k] = setting.scope[k];
-      }
+  /**
+   * Get transformation.
+   * @abstract
+   * @return {Transformation}
+   */
+  getTransformation () {
+    // override this
+    throw new TypeError('Visualization.getTransformation() should be overrided')
+  }
 
-      for (var k in self._prevSettingScope) {
-        if (!setting.scope[k]) {
-          self._scope[k] = setting.scope[k];
+  /**
+   * Method will be invoked when data or configuration changed.
+   * @abstract
+   */
+  render (tableData) {
+    // override this
+    throw new TypeError('Visualization.render() should be overrided')
+  }
+
+  /**
+   * Refresh visualization.
+   */
+  refresh () {
+    // override this
+  }
+
+  /**
+   * Method will be invoked when visualization need to be destroyed.
+   * Don't need to destroy this.targetEl.
+   */
+  destroy () {
+    // override this
+  }
+
+  /**
+   * return {
+   *   template : angular template string or url (url should end with .html),
+   *   scope : an object to bind to template scope
+   * }
+   */
+  getSetting () {
+    // override this
+  }
+
+  /**
+   * Activate. Invoked when visualization is selected.
+   */
+  activate () {
+    if (!this._active || this._dirty) {
+      this.refresh()
+      this._dirty = false
+    }
+    this._active = true
+  }
+
+  /**
+   * Deactivate. Invoked when visualization is de selected.
+   */
+  deactivate () {
+    this._active = false
+  }
+
+  /**
+   * Is active.
+   */
+  isActive () {
+    return this._active
+  }
+
+  /**
+   * When window or paragraph is resized.
+   */
+  resize () {
+    if (this.isActive()) {
+      this.refresh()
+    } else {
+      this._dirty = true
+    }
+  }
+
+  /**
+   * Set new config.
+   */
+  setConfig (config) {
+    this.config = config
+    if (this.isActive()) {
+      this.refresh()
+    } else {
+      this._dirty = true
+    }
+  }
+
+  /**
+   * Emit config. config will sent to server and saved.
+   */
+  emitConfig (config) {
+    this._emitter(config)
+  }
+
+  /**
+   * Render setting.
+   */
+  renderSetting (targetEl) {
+    let setting = this.getSetting()
+    if (!setting) {
+      return
+    }
+
+    // already readered
+    if (this._scope) {
+      let self = this
+      this._scope.$apply(function () {
+        for (let k in setting.scope) {
+          self._scope[k] = setting.scope[k]
         }
-      }
-    });
-    return;
-  } else {
-    this._prevSettingScope = setting.scope;
-  }
 
-  var scope = this._createNewScope();
-  for (var k in setting.scope) {
-    scope[k] = setting.scope[k];
-  }
-  var template = setting.template;
+        for (let k in self._prevSettingScope) {
+          if (!setting.scope[k]) {
+            self._scope[k] = setting.scope[k]
+          }
+        }
+      })
+      return
+    } else {
+      this._prevSettingScope = setting.scope
+    }
 
-  if (template.split('\n').length === 1 &&
-      template.endsWith('.html')) { // template is url
-    var self = this;
-    this._templateRequest(template).then(function(t) {
-      self._renderSetting(targetEl, t, scope);
-    });
-  } else {
-    this._renderSetting(targetEl, template, scope);
-  }
-};
+    let scope = this._createNewScope()
+    for (let k in setting.scope) {
+      scope[k] = setting.scope[k]
+    }
+    let template = setting.template
 
-zeppelin.Visualization.prototype._renderSetting = function(targetEl, template, scope) {
-  this._targetEl = targetEl;
-  targetEl.html(template);
-  this._compile(targetEl.contents())(scope);
-  this._scope = scope;
-};
+    if (template.split('\n').length === 1 &&
+        template.endsWith('.html')) { // template is url
+      this._templateRequest(template).then(t =>
+      _renderSetting(this, targetEl, t, scope)
+      )
+    } else {
+      _renderSetting(this, targetEl, template, scope)
+    }
+  }
+}
+
+function _renderSetting (instance, targetEl, template, scope) {
+  instance._targetEl = targetEl
+  targetEl.html(template)
+  instance._compile(targetEl.contents())(scope)
+  instance._scope = scope
+}

@@ -123,7 +123,6 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
           driver.findElements(By.xpath("//div[@ng-controller=\"ParagraphCtrl\"]")).size(),
           CoreMatchers.equalTo(3));
 
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
@@ -162,7 +161,6 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("After Remove : Number of paragraphs are",
           newNosOfParas,
           CoreMatchers.equalTo(oldNosOfParas - 1));
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
@@ -215,7 +213,6 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("The paragraph1 value contains",
           driver.findElement(By.xpath(getParagraphXPath(2) + "//div[contains(@class, 'editor')]")).getText(),
           CoreMatchers.equalTo("2"));
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
@@ -238,10 +235,10 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
       clickAndWait(By.xpath(getParagraphXPath(1) + "//ul/li/a[@ng-click='toggleEnableDisable(paragraph)']"));
       collector.checkThat("The play button class was ",
-          driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-control-play']")).isDisplayed(), CoreMatchers.equalTo(false)
+          driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-control-play shortcut-icon']")).isDisplayed(), CoreMatchers.equalTo(false)
       );
 
-      driver.findElement(By.xpath(".//*[@id='main']//button[@ng-click='runNote()']")).sendKeys(Keys.ENTER);
+      driver.findElement(By.xpath(".//*[@id='main']//button[contains(@ng-click, 'runAllParagraphs')]")).sendKeys(Keys.ENTER);
       ZeppelinITUtils.sleep(1000, true);
       driver.findElement(By.xpath("//div[@class='modal-dialog'][contains(.,'Run all paragraphs?')]" +
           "//div[@class='modal-footer']//button[contains(.,'OK')]")).click();
@@ -251,13 +248,67 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
           getParagraphStatus(1), CoreMatchers.equalTo("READY")
       );
 
-
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
       handleException("Exception in ParagraphActionsIT while testDisableParagraphRunButton ", e);
     }
+  }
 
+  @Test
+  public void testRunOnSelectionChange() throws Exception {
+    if (!endToEndTestEnabled()) {
+      return;
+    }
+    try {
+      String xpathToRunOnSelectionChangeCheckbox = getParagraphXPath(1) + "//ul/li/form/input[contains(@ng-checked, 'true')]";
+      String xpathToDropdownMenu = getParagraphXPath(1) + "//select";
+      String xpathToResultText = getParagraphXPath(1) + "//div[contains(@id,\"_html\")]";
+
+      createNewNote();
+
+      waitForParagraph(1, "READY");
+      setTextOfParagraph(1, "%md My selection is ${my selection=1,1|2|3}");
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+
+      // 1. 'RunOnSelectionChange' is true by default
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
+      collector.checkThat("'Run on selection change' checkbox will be shown under dropdown menu ",
+        driver.findElement(By.xpath(getParagraphXPath(1) + "//ul/li/form/input[contains(@ng-click, 'turnOnAutoRun(paragraph)')]")).isDisplayed(),
+        CoreMatchers.equalTo(true));
+
+      Select dropDownMenu = new Select(driver.findElement(By.xpath((xpathToDropdownMenu))));
+      dropDownMenu.selectByVisibleText("2");
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("If 'RunOnSelectionChange' is true, the paragraph result will be updated right after click any options in the dropdown menu ",
+        driver.findElement(By.xpath(xpathToResultText)).getText(),
+        CoreMatchers.equalTo("My selection is 2"));
+
+      // 2. set 'RunOnSelectionChange' to false
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
+      driver.findElement(By.xpath(xpathToRunOnSelectionChangeCheckbox)).click();
+      collector.checkThat("If 'Run on selection change' checkbox is unchecked, 'paragraph.config.runOnSelectionChange' will be false ",
+        driver.findElement(By.xpath(getParagraphXPath(1) + "//ul/li/span[contains(@ng-if, 'paragraph.config.runOnSelectionChange == false')]")).isDisplayed(),
+        CoreMatchers.equalTo(true));
+
+      Select sameDropDownMenu = new Select(driver.findElement(By.xpath((xpathToDropdownMenu))));
+      sameDropDownMenu.selectByVisibleText("1");
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("If 'RunOnSelectionChange' is false, the paragraph result won't be updated even if we select any options in the dropdown menu ",
+        driver.findElement(By.xpath(xpathToResultText)).getText(),
+        CoreMatchers.equalTo("My selection is 2"));
+
+      // run paragraph manually by pressing ENTER
+      driver.findElement(By.xpath(xpathToDropdownMenu)).sendKeys(Keys.ENTER);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Even if 'RunOnSelectionChange' is set as false, still can run the paragraph by pressing ENTER ",
+        driver.findElement(By.xpath(xpathToResultText)).getText(),
+        CoreMatchers.equalTo("My selection is 1"));
+
+    } catch (Exception e) {
+      handleException("Exception in ParagraphActionsIT while testRunOnSelectionChange ", e);
+    }
   }
 
   @Test
@@ -274,7 +325,7 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("Before Run Output field contains ",
           driver.findElements(By.xpath(xpathToOutputField)).size(),
           CoreMatchers.equalTo(0));
-      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@ng-click='runParagraph(getEditorValue())']")).click();
+      runParagraph(1);
       waitForParagraph(1, "FINISHED");
       collector.checkThat("After Run Output field contains  ",
           driver.findElement(By.xpath(xpathToOutputField)).getText(),
@@ -285,13 +336,11 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("After Clear  Output field contains ",
           driver.findElements(By.xpath(xpathToOutputField)).size(),
           CoreMatchers.equalTo(0));
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
       handleException("Exception in ParagraphActionsIT while testClearOutputButton ", e);
     }
-
   }
 
   @Test
@@ -315,6 +364,7 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
             driver.findElement(By.xpath("//div[contains(@class,'col-md-" + newWidth + "')]")).isDisplayed(),
             CoreMatchers.equalTo(true));
       }
+      deleteTestNotebook(driver);
     } catch (Exception e) {
       handleException("Exception in ParagraphActionsIT while testWidth ", e);
     }
@@ -344,9 +394,11 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       ZeppelinITUtils.turnOnImplicitWaits(driver);
 
       clickAndWait(By.xpath(xpathToSettingIcon));
-      collector.checkThat("Before Show Title : The title option in option panel of paragraph is labeled as  ",
+      collector.checkThat("Before Show Title : The title option in option panel of paragraph is labeled as",
           driver.findElement(By.xpath(xpathToShowTitle)).getText(),
-          CoreMatchers.equalTo("Show title"));
+          CoreMatchers.allOf(CoreMatchers.startsWith("Show title"), CoreMatchers.containsString("Ctrl+"),
+              CoreMatchers.anyOf(CoreMatchers.containsString("Option"), CoreMatchers.containsString("Alt")),
+              CoreMatchers.containsString("+T")));
 
       clickAndWait(By.xpath(xpathToShowTitle));
       collector.checkThat("After Show Title : The title field contains",
@@ -356,7 +408,9 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       clickAndWait(By.xpath(xpathToSettingIcon));
       collector.checkThat("After Show Title : The title option in option panel of paragraph is labeled as",
           driver.findElement(By.xpath(xpathToHideTitle)).getText(),
-          CoreMatchers.equalTo("Hide title"));
+          CoreMatchers.allOf(CoreMatchers.startsWith("Hide title"), CoreMatchers.containsString("Ctrl+"),
+              CoreMatchers.anyOf(CoreMatchers.containsString("Option"), CoreMatchers.containsString("Alt")),
+              CoreMatchers.containsString("+T")));
 
       clickAndWait(By.xpath(xpathToHideTitle));
       ZeppelinITUtils.turnOffImplicitWaits(driver);
@@ -380,7 +434,6 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("After Page Refresh : The title field contains ",
           driver.findElement(By.xpath(xpathToTitle)).getText(),
           CoreMatchers.equalTo("NEW TITLE"));
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
@@ -405,23 +458,31 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       collector.checkThat("Before \"Show line number\" the Line Number is Enabled ",
           driver.findElement(By.xpath(xpathToLineNumberField)).isDisplayed(),
           CoreMatchers.equalTo(false));
+
       driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
       collector.checkThat("Before \"Show line number\" The option panel in paragraph has button labeled ",
           driver.findElement(By.xpath(xpathToShowLineNumberButton)).getText(),
-          CoreMatchers.equalTo("Show line numbers"));
+          CoreMatchers.allOf(CoreMatchers.startsWith("Show line numbers"), CoreMatchers.containsString("Ctrl+"),
+              CoreMatchers.anyOf(CoreMatchers.containsString("Option"), CoreMatchers.containsString("Alt")),
+              CoreMatchers.containsString("+M")));
+
+
       clickAndWait(By.xpath(xpathToShowLineNumberButton));
       collector.checkThat("After \"Show line number\" the Line Number is Enabled ",
           driver.findElement(By.xpath(xpathToLineNumberField)).isDisplayed(),
           CoreMatchers.equalTo(true));
+
       clickAndWait(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']"));
       collector.checkThat("After \"Show line number\" The option panel in paragraph has button labeled ",
           driver.findElement(By.xpath(xpathToHideLineNumberButton)).getText(),
-          CoreMatchers.equalTo("Hide line numbers"));
+          CoreMatchers.allOf(CoreMatchers.startsWith("Hide line numbers"), CoreMatchers.containsString("Ctrl+"),
+              CoreMatchers.anyOf(CoreMatchers.containsString("Option"), CoreMatchers.containsString("Alt")),
+              CoreMatchers.containsString("+M")));
+
       clickAndWait(By.xpath(xpathToHideLineNumberButton));
       collector.checkThat("After \"Hide line number\" the Line Number is Enabled",
           driver.findElement(By.xpath(xpathToLineNumberField)).isDisplayed(),
           CoreMatchers.equalTo(false));
-      ZeppelinITUtils.sleep(1000, false);
       deleteTestNotebook(driver);
 
     } catch (Exception e) {
@@ -450,8 +511,8 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       waitForParagraph(1, "FINISHED");
 
       collector.checkThat("Markdown editor is hidden after run ",
-          driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@ng-show, 'paragraph.config.editorHide')]")).isDisplayed(),
-          CoreMatchers.equalTo(false));
+          driver.findElements(By.xpath(getParagraphXPath(1) + "//div[contains(@ng-if, 'paragraph.config.editorHide')]")).size(),
+          CoreMatchers.equalTo(0));
 
       collector.checkThat("Markdown editor is shown after run ",
           driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@ng-show, 'paragraph.config.tableHide')]")).isDisplayed(),
@@ -464,7 +525,7 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
       action.doubleClick(driver.findElement(By.xpath(getParagraphXPath(1)))).perform();
       ZeppelinITUtils.sleep(1000, false);
       collector.checkThat("Markdown editor is shown after double click ",
-          driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@ng-show, 'paragraph.config.editorHide')]")).isDisplayed(),
+          driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@ng-if, 'paragraph.config.editorHide')]")).isDisplayed(),
           CoreMatchers.equalTo(true));
 
       collector.checkThat("Markdown editor is hidden after double click ",
@@ -475,6 +536,166 @@ public class ParagraphActionsIT extends AbstractZeppelinIT {
 
     } catch (Exception e) {
       handleException("Exception in ParagraphActionsIT while testEditOnDoubleClick ", e);
+    }
+  }
+
+  @Test
+  public void testSingleDynamicFormTextInput() throws Exception {
+    if (!endToEndTestEnabled()) {
+      return;
+    }
+    try {
+      createNewNote();
+
+      setTextOfParagraph(1, "%spark println(\"Hello \"+z.textbox(\"name\", \"world\")) ");
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Output text is equal to value specified initially",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Hello world"));
+
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//input")).clear();
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//input")).sendKeys("Zeppelin");
+
+      collector.checkThat("After new data in text input form, output should not be changed",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Hello world"));
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Only after running the paragraph, we can see the newly updated output",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Hello Zeppelin"));
+
+      deleteTestNotebook(driver);
+
+    } catch (Exception e) {
+      handleException("Exception in ParagraphActionsIT while testSingleDynamicFormTextInput  ", e);
+    }
+  }
+
+  @Test
+  public void testSingleDynamicFormSelectForm() throws Exception {
+    if (!endToEndTestEnabled()) {
+      return;
+    }
+    try {
+      createNewNote();
+
+      setTextOfParagraph(1, "%spark println(\"Howdy \"+z.select(\"names\", Seq((\"1\",\"Alice\"), " +
+              "(\"2\",\"Bob\"),(\"3\",\"stranger\"))))");
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Output text should not display any of the options in select form",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy "));
+
+      Select dropDownMenu = new Select(driver.findElement(By.xpath("(" + (getParagraphXPath(1) + "//select)[1]"))));
+
+      dropDownMenu.selectByVisibleText("Alice");
+      collector.checkThat("After selection in drop down menu, output should display the newly selected option",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy 1"));
+
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
+      clickAndWait(By.xpath(getParagraphXPath(1) + "//ul/li/form/input[contains(@ng-checked, 'true')]"));
+
+      Select sameDropDownMenu = new Select(driver.findElement(By.xpath("(" + (getParagraphXPath(1) + "//select)[1]"))));
+      sameDropDownMenu.selectByVisibleText("Bob");
+      collector.checkThat("After 'Run on selection change' checkbox is unchecked, the paragraph should not run if selecting a different option",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy 1"));
+
+      deleteTestNotebook(driver);
+
+    } catch (Exception e) {
+      handleException("Exception in ParagraphActionsIT while testSingleDynamicFormSelectForm  ", e);
+    }
+  }
+
+  @Test
+  public void testSingleDynamicFormCheckboxForm() throws Exception {
+    if (!endToEndTestEnabled()) {
+      return;
+    }
+    try {
+      createNewNote();
+
+      setTextOfParagraph(1, "%spark val options = Seq((\"han\",\"Han\"), (\"leia\",\"Leia\"), " +
+              "(\"luke\",\"Luke\")); println(\"Greetings \"+z.checkbox(\"skywalkers\",options).mkString(\" and \"))");
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Output text should display all of the options included in check boxes",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.containsString("Greetings han and leia and luke"));
+
+      WebElement firstCheckbox = driver.findElement(By.xpath("(" + getParagraphXPath(1) + "//input[@type='checkbox'])[1]"));
+      firstCheckbox.click();
+      collector.checkThat("After unchecking one of the boxes, we can see the newly updated output without the option we unchecked",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.containsString("Greetings leia and luke"));
+
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
+      clickAndWait(By.xpath(getParagraphXPath(1) + "//ul/li/form/input[contains(@ng-checked, 'true')]"));
+
+      WebElement secondCheckbox = driver.findElement(By.xpath("(" + getParagraphXPath(1) + "//input[@type='checkbox'])[2]"));
+      secondCheckbox.click();
+      collector.checkThat("After 'Run on selection change' checkbox is unchecked, the paragraph should not run if check box state is modified",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.containsString("Greetings leia and luke"));
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+
+
+      deleteTestNotebook(driver);
+
+    } catch (Exception e) {
+      handleException("Exception in ParagraphActionsIT while testSingleDynamicFormCheckboxForm  ", e);
+    }
+  }
+
+  @Test
+  public void testMultipleDynamicFormsSameType() throws Exception {
+    if (!endToEndTestEnabled()) {
+      return;
+    }
+    try {
+      createNewNote();
+
+      setTextOfParagraph(1, "%spark println(\"Howdy \"+z.select(\"fruits\", Seq((\"1\",\"Apple\")," +
+              "(\"2\",\"Orange\"),(\"3\",\"Peach\")))); println(\"Howdy \"+z.select(\"planets\", " +
+              "Seq((\"1\",\"Venus\"),(\"2\",\"Earth\"),(\"3\",\"Mars\"))))");
+
+      runParagraph(1);
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("Output text should not display any of the options in select form",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy \nHowdy "));
+
+      Select dropDownMenu = new Select(driver.findElement(By.xpath("(" + (getParagraphXPath(1) + "//select)[1]"))));
+      dropDownMenu.selectByVisibleText("Apple");
+      collector.checkThat("After selection in drop down menu, output should display the new option we selected",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy 1\nHowdy "));
+
+      driver.findElement(By.xpath(getParagraphXPath(1) + "//span[@class='icon-settings']")).click();
+      clickAndWait(By.xpath(getParagraphXPath(1) + "//ul/li/form/input[contains(@ng-checked, 'true')]"));
+
+      Select sameDropDownMenu = new Select(driver.findElement(By.xpath("(" + (getParagraphXPath(1) + "//select)[2]"))));
+      sameDropDownMenu.selectByVisibleText("Earth");
+      waitForParagraph(1, "FINISHED");
+      collector.checkThat("After 'Run on selection change' checkbox is unchecked, the paragraph should not run if selecting a different option",
+              driver.findElement(By.xpath(getParagraphXPath(1) + "//div[contains(@class, 'text plainTextContent')]")).getText(),
+              CoreMatchers.equalTo("Howdy 1\nHowdy "));
+
+      deleteTestNotebook(driver);
+
+    } catch (Exception e) {
+      handleException("Exception in ParagraphActionsIT while testMultipleDynamicFormsSameType  ", e);
     }
   }
 }

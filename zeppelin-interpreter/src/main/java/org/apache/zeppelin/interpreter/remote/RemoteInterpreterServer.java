@@ -17,16 +17,13 @@
 
 package org.apache.zeppelin.interpreter.remote;
 
-
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.rmi.server.RemoteServer;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -39,7 +36,6 @@ import org.apache.zeppelin.interpreter.*;
 import org.apache.zeppelin.interpreter.InterpreterHookRegistry.HookType;
 import org.apache.zeppelin.interpreter.InterpreterHookListener;
 import org.apache.zeppelin.interpreter.InterpreterResult.Code;
-import org.apache.zeppelin.interpreter.dev.ZeppelinDevServer;
 import org.apache.zeppelin.interpreter.thrift.*;
 import org.apache.zeppelin.resource.*;
 import org.apache.zeppelin.scheduler.Job;
@@ -84,6 +80,8 @@ public class RemoteInterpreterServer
   private Map<String, Object> remoteWorksResponsePool;
   private ZeppelinRemoteWorksController remoteWorksController;
 
+  private final long DEFAULT_SHUTDOWN_TIMEOUT = 2000;
+
   public RemoteInterpreterServer(int port) throws TTransportException {
     this.port = port;
 
@@ -103,10 +101,9 @@ public class RemoteInterpreterServer
 
   @Override
   public void shutdown() throws TException {
-    eventClient.waitForEventQueueBecomesEmpty();
+    eventClient.waitForEventQueueBecomesEmpty(DEFAULT_SHUTDOWN_TIMEOUT);
     if (interpreterGroup != null) {
       interpreterGroup.close();
-      interpreterGroup.destroy();
     }
 
     server.stop();
@@ -116,7 +113,8 @@ public class RemoteInterpreterServer
     // this case, need to force kill the process
 
     long startTime = System.currentTimeMillis();
-    while (System.currentTimeMillis() - startTime < 2000 && server.isServing()) {
+    while (System.currentTimeMillis() - startTime < DEFAULT_SHUTDOWN_TIMEOUT &&
+        server.isServing()) {
       try {
         Thread.sleep(300);
       } catch (InterruptedException e) {
@@ -145,7 +143,7 @@ public class RemoteInterpreterServer
   public static void main(String[] args)
       throws TTransportException, InterruptedException {
 
-    int port = ZeppelinDevServer.DEFAULT_TEST_INTERPRETER_PORT;
+    int port = Constants.ZEPPELIN_INTERPRETER_DEFAUlT_PORT;
     if (args.length > 0) {
       port = Integer.parseInt(args[0]);
     }
@@ -168,6 +166,11 @@ public class RemoteInterpreterServer
       interpreterGroup.setResourcePool(resourcePool);
 
       String localRepoPath = properties.get("zeppelin.interpreter.localRepo");
+      if (properties.containsKey("zeppelin.interpreter.output.limit")) {
+        InterpreterOutput.limit = Integer.parseInt(
+            properties.get("zeppelin.interpreter.output.limit"));
+      }
+
       depLoader = new DependencyResolver(localRepoPath);
       appLoader = new ApplicationLoader(resourcePool, depLoader);
     }
@@ -218,7 +221,7 @@ public class RemoteInterpreterServer
 
   private void setSystemProperty(Properties properties) {
     for (Object key : properties.keySet()) {
-      if (!RemoteInterpreter.isEnvString((String) key)) {
+      if (!RemoteInterpreterUtils.isEnvString((String) key)) {
         String value = properties.getProperty((String) key);
         if (value == null || value.isEmpty()) {
           System.clearProperty((String) key);
@@ -276,17 +279,18 @@ public class RemoteInterpreterServer
     }
 
     // close interpreters
+    List<Interpreter> interpreters;
     synchronized (interpreterGroup) {
-      List<Interpreter> interpreters = interpreterGroup.get(sessionKey);
-      if (interpreters != null) {
-        Iterator<Interpreter> it = interpreters.iterator();
-        while (it.hasNext()) {
-          Interpreter inp = it.next();
-          if (inp.getClassName().equals(className)) {
-            inp.close();
-            it.remove();
-            break;
-          }
+      interpreters = interpreterGroup.get(sessionKey);
+    }
+    if (interpreters != null) {
+      Iterator<Interpreter> it = interpreters.iterator();
+      while (it.hasNext()) {
+        Interpreter inp = it.next();
+        if (inp.getClassName().equals(className)) {
+          inp.close();
+          it.remove();
+          break;
         }
       }
     }
@@ -403,6 +407,7 @@ public class RemoteInterpreterServer
     private String script;
     private InterpreterContext context;
     private Map<String, Object> infos;
+    private Object results;
 
     public InterpretJob(
         String jobId,
@@ -416,6 +421,11 @@ public class RemoteInterpreterServer
       this.interpreter = interpreter;
       this.script = script;
       this.context = context;
+    }
+
+    @Override
+    public Object getReturn() {
+      return results;
     }
 
     @Override
@@ -437,7 +447,7 @@ public class RemoteInterpreterServer
         public void onPreExecute(String script) {
           String cmdDev = interpreter.getHook(noteId, HookType.PRE_EXEC_DEV);
           String cmdUser = interpreter.getHook(noteId, HookType.PRE_EXEC);
-          
+
           // User defined hook should be executed before dev hook
           List<String> cmds = Arrays.asList(cmdDev, cmdUser);
           for (String cmd : cmds) {
@@ -445,15 +455,15 @@ public class RemoteInterpreterServer
               script = cmd + '\n' + script;
             }
           }
-          
+
           InterpretJob.this.script = script;
         }
-        
+
         @Override
         public void onPostExecute(String script) {
           String cmdDev = interpreter.getHook(noteId, HookType.POST_EXEC_DEV);
           String cmdUser = interpreter.getHook(noteId, HookType.POST_EXEC);
-          
+
           // User defined hook should be executed after dev hook
           List<String> cmds = Arrays.asList(cmdUser, cmdDev);
           for (String cmd : cmds) {
@@ -461,7 +471,7 @@ public class RemoteInterpreterServer
               script += '\n' + cmd;
             }
           }
-          
+
           InterpretJob.this.script = script;
         }
       };
@@ -473,20 +483,25 @@ public class RemoteInterpreterServer
     protected Object jobRun() throws Throwable {
       try {
         InterpreterContext.set(context);
-        
+
+        InterpreterResult result = null;
+
         // Open the interpreter instance prior to calling interpret().
         // This is necessary because the earliest we can register a hook
         // is from within the open() method.
         LazyOpenInterpreter lazy = (LazyOpenInterpreter) interpreter;
         if (!lazy.isOpen()) {
           lazy.open();
+          result = lazy.executePrecode(context);
         }
-        
-        // Add hooks to script from registry.
-        // Global scope first, followed by notebook scope
-        processInterpreterHooks(null);
-        processInterpreterHooks(context.getNoteId());
-        InterpreterResult result = interpreter.interpret(script, context);
+
+        if (result == null || result.code() == Code.SUCCESS) {
+          // Add hooks to script from registry.
+          // Global scope first, followed by notebook scope
+          processInterpreterHooks(null);
+          processInterpreterHooks(context.getNoteId());
+          result = interpreter.interpret(script, context);
+        }
 
         // data from context.out is prepended to InterpreterResult if both defined
         context.out.flush();
@@ -514,6 +529,11 @@ public class RemoteInterpreterServer
     @Override
     protected boolean jobAbort() {
       return false;
+    }
+
+    @Override
+    public void setResult(Object results) {
+      this.results = results;
     }
   }
 
@@ -550,10 +570,10 @@ public class RemoteInterpreterServer
 
   @Override
   public List<InterpreterCompletion> completion(String noteId,
-      String className, String buf, int cursor)
+      String className, String buf, int cursor, RemoteInterpreterContext remoteInterpreterContext)
       throws TException {
     Interpreter intp = getInterpreter(noteId, className);
-    List completion = intp.completion(buf, cursor);
+    List completion = intp.completion(buf, cursor, convert(remoteInterpreterContext, null));
     return completion;
   }
 
@@ -580,7 +600,7 @@ public class RemoteInterpreterServer
         gson.fromJson(ric.getAuthenticationInfo(), AuthenticationInfo.class),
         (Map<String, Object>) gson.fromJson(ric.getConfig(),
             new TypeToken<Map<String, Object>>() {}.getType()),
-        gson.fromJson(ric.getGui(), GUI.class),
+        GUI.fromJson(ric.getGui()),
         interpreterGroup.getAngularObjectRegistry(),
         interpreterGroup.getResourcePool(),
         contextRunners, output, remoteWorksController, eventClient);
@@ -725,7 +745,7 @@ public class RemoteInterpreterServer
         result.code().name(),
         msg,
         gson.toJson(config),
-        gson.toJson(gui));
+        gui.toJson());
   }
 
   @Override
@@ -942,6 +962,73 @@ public class RemoteInterpreterServer
         logger.error(e.getMessage(), e);
         return ByteBuffer.allocate(0);
       }
+    }
+  }
+
+  @Override
+  public ByteBuffer resourceInvokeMethod(
+      String noteId, String paragraphId, String resourceName, String invokeMessage) {
+    InvokeResourceMethodEventMessage message =
+        gson.fromJson(invokeMessage, InvokeResourceMethodEventMessage.class);
+
+    Resource resource = resourcePool.get(noteId, paragraphId, resourceName, false);
+    if (resource == null || resource.get() == null) {
+      return ByteBuffer.allocate(0);
+    } else {
+      try {
+        Object o = resource.get();
+        Method method = o.getClass().getMethod(
+            message.methodName,
+            message.getParamTypes());
+        Object ret = method.invoke(o, message.params);
+        if (message.shouldPutResultIntoResourcePool()) {
+          // if return resource name is specified,
+          // then put result into resource pool
+          // and return empty byte buffer
+          resourcePool.put(
+              noteId,
+              paragraphId,
+              message.returnResourceName,
+              ret);
+          return ByteBuffer.allocate(0);
+        } else {
+          // if return resource name is not specified,
+          // then return serialized result
+          ByteBuffer serialized = Resource.serializeObject(ret);
+          if (serialized == null) {
+            return ByteBuffer.allocate(0);
+          } else {
+            return serialized;
+          }
+        }
+      } catch (Exception e) {
+        logger.error(e.getMessage(), e);
+        return ByteBuffer.allocate(0);
+      }
+    }
+  }
+
+  /**
+   * Get payload of resource from remote
+   * @param invokeResourceMethodEventMessage json serialized InvokeResourcemethodEventMessage
+   * @param object java serialized of the object
+   * @throws TException
+   */
+  @Override
+  public void resourceResponseInvokeMethod(
+      String invokeResourceMethodEventMessage, ByteBuffer object) throws TException {
+    InvokeResourceMethodEventMessage message =
+        gson.fromJson(invokeResourceMethodEventMessage, InvokeResourceMethodEventMessage.class);
+
+    if (message.shouldPutResultIntoResourcePool()) {
+      Resource resource = resourcePool.get(
+          message.resourceId.getNoteId(),
+          message.resourceId.getParagraphId(),
+          message.returnResourceName,
+          true);
+      eventClient.putResponseInvokeMethod(message, resource);
+    } else {
+      eventClient.putResponseInvokeMethod(message, object);
     }
   }
 

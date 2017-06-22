@@ -19,8 +19,8 @@
 package org.apache.zeppelin.pig;
 
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.pig.PigServer;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.impl.logicalLayer.FrontendException;
@@ -45,6 +45,7 @@ import java.util.Properties;
 public class PigQueryInterpreter extends BasePigInterpreter {
 
   private static Logger LOGGER = LoggerFactory.getLogger(PigQueryInterpreter.class);
+  private static final String MAX_RESULTS = "zeppelin.pig.maxResult";
   private PigServer pigServer;
   private int maxResult;
 
@@ -55,7 +56,7 @@ public class PigQueryInterpreter extends BasePigInterpreter {
   @Override
   public void open() {
     pigServer = getPigInterpreter().getPigServer();
-    maxResult = Integer.parseInt(getProperty("zeppelin.pig.maxResult"));
+    maxResult = Integer.parseInt(getProperty(MAX_RESULTS));
   }
 
   @Override
@@ -78,6 +79,7 @@ public class PigQueryInterpreter extends BasePigInterpreter {
 
     StringBuilder resultBuilder = new StringBuilder("%table ");
     try {
+      pigServer.setJobName(createJobName(st, context));
       File tmpScriptFile = PigUtils.createTempPigScript(queries);
       // each thread should its own ScriptState & PigStats
       ScriptState.start(pigServer.getPigContext().getExecutionEngine().instantiateScriptState());
@@ -93,7 +95,7 @@ public class PigQueryInterpreter extends BasePigInterpreter {
       if (schemaKnown) {
         for (int i = 0; i < schema.size(); ++i) {
           Schema.FieldSchema field = schema.getField(i);
-          resultBuilder.append(field.alias);
+          resultBuilder.append(field.alias != null ? field.alias : "col_" + i);
           if (i != schema.size() - 1) {
             resultBuilder.append("\t");
           }
@@ -103,7 +105,7 @@ public class PigQueryInterpreter extends BasePigInterpreter {
       Iterator<Tuple> iter = pigServer.openIterator(alias);
       boolean firstRow = true;
       int index = 0;
-      while (iter.hasNext() && index <= maxResult) {
+      while (iter.hasNext() && index < maxResult) {
         index++;
         Tuple tuple = iter.next();
         if (firstRow && !schemaKnown) {
@@ -113,11 +115,12 @@ public class PigQueryInterpreter extends BasePigInterpreter {
           resultBuilder.append("\n");
           firstRow = false;
         }
-        resultBuilder.append(StringUtils.join(tuple, "\t"));
+        resultBuilder.append(StringUtils.join(tuple.iterator(), "\t"));
         resultBuilder.append("\n");
       }
       if (index >= maxResult && iter.hasNext()) {
-        resultBuilder.append("\n<font color=red>Results are limited by " + maxResult + ".</font>");
+        resultBuilder.append("\n");
+        resultBuilder.append(ResultMessages.getExceedsLimitRowsMessage(maxResult, MAX_RESULTS));
       }
     } catch (IOException e) {
       // Extract error in the following order

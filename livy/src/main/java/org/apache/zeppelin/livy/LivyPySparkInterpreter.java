@@ -17,23 +17,13 @@
 
 package org.apache.zeppelin.livy;
 
-import org.apache.zeppelin.interpreter.*;
-import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
-import org.apache.zeppelin.scheduler.Scheduler;
-import org.apache.zeppelin.scheduler.SchedulerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 
 /**
  * Livy PySpark interpreter for Zeppelin.
  */
-public class LivyPySparkInterpreter extends BaseLivyInterprereter {
+public class LivyPySparkInterpreter extends LivyPySparkBaseInterpreter {
 
   public LivyPySparkInterpreter(Properties property) {
     super(property);
@@ -43,4 +33,6 @@ public class LivyPySparkInterpreter extends BaseLivyInterprereter {
   public String getSessionKind() {
     return "pyspark";
   }
+
+
 }

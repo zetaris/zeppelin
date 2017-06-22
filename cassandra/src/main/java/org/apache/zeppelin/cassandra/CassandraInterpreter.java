@@ -216,7 +216,8 @@ public class CassandraInterpreter extends Interpreter {
   }
 
   @Override
-  public List<InterpreterCompletion> completion(String buf, int cursor) {
+  public List<InterpreterCompletion> completion(String buf, int cursor,
+      InterpreterContext interpreterContext) {
     return NO_COMPLETION;
   }
 
@@ -225,11 +226,5 @@ public class CassandraInterpreter extends Interpreter {
     return SchedulerFactory.singleton()
             .createOrGetParallelScheduler(CassandraInterpreter.class.getName() + this.hashCode(),
                     parseInt(getProperty(CASSANDRA_INTERPRETER_PARALLELISM)));
-  }
-
-  @Override
-  public void destroy() {
-    super.destroy();
-    this.close();
   }
 }

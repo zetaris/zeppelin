@@ -101,7 +101,7 @@ public class NotebookServerTest extends AbstractTestRestApi {
 
     // get reference to interpreterGroup
     InterpreterGroup interpreterGroup = null;
-    List<InterpreterSetting> settings = notebook.getInterpreterFactory().getInterpreterSettings(note1.getId());
+    List<InterpreterSetting> settings = notebook.getInterpreterSettingManager().getInterpreterSettings(note1.getId());
     for (InterpreterSetting setting : settings) {
       if (setting.getName().equals("md")) {
         interpreterGroup = setting.getInterpreterGroup("anonymous", "sharedProcess");
@@ -110,7 +110,7 @@ public class NotebookServerTest extends AbstractTestRestApi {
     }
 
     // start interpreter process
-    Paragraph p1 = note1.addParagraph();
+    Paragraph p1 = note1.addNewParagraph(AuthenticationInfo.ANONYMOUS);
     p1.setText("%md start remote interpreter process");
     p1.setAuthenticationInfo(anonymous);
     note1.run(p1.getId());
@@ -374,7 +374,7 @@ public class NotebookServerTest extends AbstractTestRestApi {
 
     String noteName = "Note with millis " + System.currentTimeMillis();
     String defaultInterpreterId = "";
-    List<InterpreterSetting> settings = notebook.getInterpreterFactory().get();
+    List<InterpreterSetting> settings = notebook.getInterpreterSettingManager().get();
     if (settings.size() > 1) {
       defaultInterpreterId = settings.get(1).getId();
     }
@@ -396,7 +396,7 @@ public class NotebookServerTest extends AbstractTestRestApi {
     }
 
     if (settings.size() > 1) {
-      assertEquals(notebook.getInterpreterFactory().getDefaultInterpreterSetting(
+      assertEquals(notebook.getInterpreterSettingManager().getDefaultInterpreterSetting(
               createdNote.getId()).getId(), defaultInterpreterId);
     }
     notebook.removeNote(createdNote.getId(), anonymous);

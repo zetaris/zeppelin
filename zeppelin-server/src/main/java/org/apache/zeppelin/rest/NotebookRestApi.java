@@ -18,11 +18,7 @@
 package org.apache.zeppelin.rest;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -93,7 +89,9 @@ public class NotebookRestApi {
   @GET
   @Path("{noteId}/permissions")
   @ZeppelinApi
-  public Response getNotePermissions(@PathParam("noteId") String noteId) {
+  public Response getNotePermissions(@PathParam("noteId") String noteId) throws IOException {
+
+    checkIfUserIsAnon(getBlockNotAuthenticatedUserErrorMsg());
     checkIfUserCanRead(noteId,
         "Insufficient privileges you cannot get the list of permissions for this note");
     HashMap<String, Set<String>> permissionsMap = new HashMap<>();
@@ -111,12 +109,27 @@ public class NotebookRestApi {
         "User belongs to: " + current.toString();
   }
 
+  private String getBlockNotAuthenticatedUserErrorMsg() throws IOException {
+    return  "Only authenticated user can set the permission.";
+  }
+
   /**
    * Set of utils method to check if current user can perform action to the note.
    * Since we only have security on notebook level, from now we keep this logic in this class.
    * In the future we might want to generalize this for the rest of the api enmdpoints.
    */
-  
+
+  /**
+   * Check if the current user is not authenticated(anonymous user) or not
+   */
+  private void checkIfUserIsAnon(String errorMsg) {
+    boolean isAuthenticated = SecurityUtils.isAuthenticated();
+    if (isAuthenticated && SecurityUtils.getPrincipal().equals("anonymous")) {
+      LOG.info("Anonymous user cannot set any permissions for this note.");
+      throw new ForbiddenException(errorMsg);
+    }
+  }
+
   /**
    * Check if the current user own the given note.
    */
@@ -178,7 +191,8 @@ public class NotebookRestApi {
     HashSet<String> userAndRoles = new HashSet<>();
     userAndRoles.add(principal);
     userAndRoles.addAll(roles);
-    
+
+    checkIfUserIsAnon(getBlockNotAuthenticatedUserErrorMsg());
     checkIfUserIsOwner(noteId,
         ownerPermissionError(userAndRoles, notebookAuthorization.getOwners(noteId)));
     
@@ -305,7 +319,7 @@ public class NotebookRestApi {
   public Response importNote(String req) throws IOException {
     AuthenticationInfo subject = new AuthenticationInfo(SecurityUtils.getPrincipal());
     Note newNote = notebook.importNote(req, null, subject);
-    return new JsonResponse<>(Status.CREATED, "", newNote.getId()).build();
+    return new JsonResponse<>(Status.OK, "", newNote.getId()).build();
   }
 
   /**
@@ -319,19 +333,19 @@ public class NotebookRestApi {
   @Path("/")
   @ZeppelinApi
   public Response createNote(String message) throws IOException {
+    String user = SecurityUtils.getPrincipal();
     LOG.info("Create new note by JSON {}", message);
     NewNoteRequest request = gson.fromJson(message, NewNoteRequest.class);
-    AuthenticationInfo subject = new AuthenticationInfo(SecurityUtils.getPrincipal());
+    AuthenticationInfo subject = new AuthenticationInfo(user);
     Note note = notebook.createNote(subject);
     List<NewParagraphRequest> initialParagraphs = request.getParagraphs();
     if (initialParagraphs != null) {
       for (NewParagraphRequest paragraphRequest : initialParagraphs) {
-        Paragraph p = note.addParagraph();
-        p.setTitle(paragraphRequest.getTitle());
-        p.setText(paragraphRequest.getText());
+        Paragraph p = note.addNewParagraph(subject);
+        initParagraph(p, paragraphRequest, user);
       }
     }
-    note.addParagraph(); // add one paragraph to the last
+    note.addNewParagraph(subject); // add one paragraph to the last
     String noteName = request.getName();
     if (noteName.isEmpty()) {
       noteName = "Note " + note.getId();
@@ -341,7 +355,7 @@ public class NotebookRestApi {
     note.persist(subject);
     notebookServer.broadcastNote(note);
     notebookServer.broadcastNoteList(subject, SecurityUtils.getRoles());
-    return new JsonResponse<>(Status.CREATED, "", note.getId()).build();
+    return new JsonResponse<>(Status.OK, "", note.getId()).build();
   }
 
   /**
@@ -373,7 +387,7 @@ public class NotebookRestApi {
    * Clone note REST API
    *
    * @param noteId ID of Note
-   * @return JSON with status.CREATED
+   * @return JSON with status.OK
    * @throws IOException, CloneNotSupportedException, IllegalArgumentException
    */
   @POST
@@ -392,7 +406,7 @@ public class NotebookRestApi {
     Note newNote = notebook.cloneNote(noteId, newNoteName, subject);
     notebookServer.broadcastNote(newNote);
     notebookServer.broadcastNoteList(subject, SecurityUtils.getRoles());
-    return new JsonResponse<>(Status.CREATED, "", newNote.getId()).build();
+    return new JsonResponse<>(Status.OK, "", newNote.getId()).build();
   }
 
   /**
@@ -407,6 +421,7 @@ public class NotebookRestApi {
   @ZeppelinApi
   public Response insertParagraph(@PathParam("noteId") String noteId, String message)
       throws IOException {
+    String user = SecurityUtils.getPrincipal();
     LOG.info("insert paragraph {} {}", noteId, message);
 
     Note note = notebook.getNote(noteId);
@@ -414,21 +429,18 @@ public class NotebookRestApi {
     checkIfUserCanWrite(noteId, "Insufficient privileges you cannot add paragraph to this note");
 
     NewParagraphRequest request = gson.fromJson(message, NewParagraphRequest.class);
-
+    AuthenticationInfo subject = new AuthenticationInfo(user);
     Paragraph p;
     Double indexDouble = request.getIndex();
     if (indexDouble == null) {
-      p = note.addParagraph();
+      p = note.addNewParagraph(subject);
     } else {
-      p = note.insertParagraph(indexDouble.intValue());
+      p = note.insertNewParagraph(indexDouble.intValue(), subject);
     }
-    p.setTitle(request.getTitle());
-    p.setText(request.getText());
-
-    AuthenticationInfo subject = new AuthenticationInfo(SecurityUtils.getPrincipal());
+    initParagraph(p, request, user);
     note.persist(subject);
     notebookServer.broadcastNote(note);
-    return new JsonResponse<>(Status.CREATED, "", p.getId()).build();
+    return new JsonResponse<>(Status.OK, "", p.getId()).build();
   }
 
   /**
@@ -469,17 +481,7 @@ public class NotebookRestApi {
     checkIfParagraphIsNotNull(p);
 
     Map<String, Object> newConfig = gson.fromJson(message, HashMap.class);
-    if (newConfig == null || newConfig.isEmpty()) {
-      LOG.warn("{} is trying to update paragraph {} of note {} with empty config",
-          user, paragraphId, noteId);
-      throw new BadRequestException("paragraph config cannot be empty");
-    }
-    Map<String, Object> origConfig = p.getConfig();
-    for (String key : newConfig.keySet()) {
-      origConfig.put(key, newConfig.get(key));
-    }
-
-    p.setConfig(origConfig);
+    configureParagraph(p, newConfig, user);
     AuthenticationInfo subject = new AuthenticationInfo(user);
     note.persist(subject);
 
@@ -586,17 +588,17 @@ public class NotebookRestApi {
       throws IOException, IllegalArgumentException {
     LOG.info("run note jobs {} ", noteId);
     Note note = notebook.getNote(noteId);
+    AuthenticationInfo subject = new AuthenticationInfo(SecurityUtils.getPrincipal());
     checkIfNoteIsNotNull(note);
     checkIfUserCanWrite(noteId, "Insufficient privileges you cannot run job for this note");
 
     try {
-      note.runAll();
+      note.runAll(subject);
     } catch (Exception ex) {
       LOG.error("Exception from run", ex);
       return new JsonResponse<>(Status.PRECONDITION_FAILED,
           ex.getMessage() + "- Not selected or Invalid Interpreter bind").build();
     }
-
     return new JsonResponse<>(Status.OK).build();
   }
 
@@ -944,6 +946,34 @@ public class NotebookRestApi {
         note.persist(subject);
       }
     }
+  }
+
+  private void initParagraph(Paragraph p, NewParagraphRequest request, String user)
+      throws IOException {
+    LOG.info("Init Paragraph for user {}", user);
+    checkIfParagraphIsNotNull(p);
+    p.setTitle(request.getTitle());
+    p.setText(request.getText());
+    Map< String, Object > config = request.getConfig();
+    if ( config != null && !config.isEmpty()) {
+      configureParagraph(p, config, user);
+    }
+  }
+
+  private void configureParagraph(Paragraph p, Map< String, Object> newConfig, String user)
+      throws IOException {
+    LOG.info("Configure Paragraph for user {}", user);
+    if (newConfig == null || newConfig.isEmpty()) {
+      LOG.warn("{} is trying to update paragraph {} of note {} with empty config",
+              user, p.getId(), p.getNote().getId());
+      throw new BadRequestException("paragraph config cannot be empty");
+    }
+    Map<String, Object> origConfig = p.getConfig();
+    for ( final Map.Entry<String, Object> entry : newConfig.entrySet()){
+      origConfig.put(entry.getKey(), entry.getValue());
+    }
+
+    p.setConfig(origConfig);
   }
 
 }

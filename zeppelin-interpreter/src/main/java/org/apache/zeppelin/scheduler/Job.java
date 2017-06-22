@@ -28,15 +28,14 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Skeletal implementation of the Job concept.
- *  - designed for inheritance
- *  - should be run on a separate thread
- *  - maintains internal state: it's status
- *  - supports listeners who are updated on status change
+ * - designed for inheritance
+ * - should be run on a separate thread
+ * - maintains internal state: it's status
+ * - supports listeners who are updated on status change
  *
- *  Job class is serialized/deserialized and used server<->client communication
- *  and saving/loading jobs from disk.
- *  Changing/adding/deleting non transitive field name need consideration of that.
- *
+ * Job class is serialized/deserialized and used server<->client communication
+ * and saving/loading jobs from disk.
+ * Changing/adding/deleting non transitive field name need consideration of that.
  */
 public abstract class Job {
   /**
@@ -48,15 +47,10 @@ public abstract class Job {
    * FINISHED - Job finished run. with success
    * ERROR - Job finished run. with error
    * ABORT - Job finished by abort
-   *
    */
   public static enum Status {
-    READY,
-    PENDING,
-    RUNNING,
-    FINISHED,
-    ERROR,
-    ABORT;
+    READY, PENDING, RUNNING, FINISHED, ERROR, ABORT;
+
     public boolean isReady() {
       return this == READY;
     }
@@ -73,13 +67,6 @@ public abstract class Job {
   private String jobName;
   String id;
 
-  // since zeppelin-0.7.0, zeppelin stores multiple results of the paragraph
-  // see ZEPPELIN-212
-  Object results;
-
-  // For backward compatibility of note.json format after ZEPPELIN-212
-  Object result;
-
   Date dateCreated;
   Date dateStarted;
   Date dateFinished;
@@ -89,7 +76,7 @@ public abstract class Job {
 
   transient boolean aborted = false;
 
-  String errorMessage;
+  private String errorMessage;
   private transient Throwable exception;
   private transient JobListener listener;
   private long progressUpdateIntervalMs;
@@ -125,6 +112,10 @@ public abstract class Job {
     setStatus(Status.READY);
   }
 
+  public void setId(String id) {
+    this.id = id;
+  }
+
   public String getId() {
     return id;
   }
@@ -141,6 +132,13 @@ public abstract class Job {
 
   public Status getStatus() {
     return status;
+  }
+
+  /**
+   * just set status without notifying to listeners for spell.
+   */
+  public void setStatusWithoutNotification(Status status) {
+    this.status = status;
   }
 
   public void setStatus(Status status) {
@@ -176,32 +174,33 @@ public abstract class Job {
 
   public void run() {
     JobProgressPoller progressUpdator = null;
+    dateStarted = new Date();
     try {
       progressUpdator = new JobProgressPoller(this, progressUpdateIntervalMs);
       progressUpdator.start();
-      dateStarted = new Date();
-      results = jobRun();
-      this.exception = null;
-      errorMessage = null;
-      dateFinished = new Date();
-      progressUpdator.terminate();
-    } catch (NullPointerException e) {
-      LOGGER.error("Job failed", e);
-      progressUpdator.terminate();
-      this.exception = e;
-      results = e.getMessage();
-      errorMessage = getStack(e);
-      dateFinished = new Date();
+      completeWithSuccess(jobRun());
     } catch (Throwable e) {
       LOGGER.error("Job failed", e);
-      progressUpdator.terminate();
-      this.exception = e;
-      results = e.getMessage();
-      errorMessage = getStack(e);
-      dateFinished = new Date();
+      completeWithError(e);
     } finally {
+      if (progressUpdator != null) {
+        progressUpdator.interrupt();
+      }
       //aborted = false;
     }
+  }
+
+  private synchronized void completeWithSuccess(Object result) {
+    setResult(result);
+    exception = null;
+    errorMessage = null;
+    dateFinished = new Date();
+  }
+
+  private synchronized void completeWithError(Throwable error) {
+    setResult(error.getMessage());
+    setException(error);
+    dateFinished = new Date();
   }
 
   public static String getStack(Throwable e) {
@@ -210,25 +209,23 @@ public abstract class Job {
     }
 
     Throwable cause = ExceptionUtils.getRootCause(e);
-    return ExceptionUtils.getFullStackTrace(cause);
+    if (cause != null) {
+      return ExceptionUtils.getFullStackTrace(cause);
+    } else {
+      return ExceptionUtils.getFullStackTrace(e);
+    }
   }
 
-  public Throwable getException() {
+  public synchronized Throwable getException() {
     return exception;
   }
 
-  protected void setException(Throwable t) {
+  protected synchronized void setException(Throwable t) {
     exception = t;
     errorMessage = getStack(t);
   }
 
-  public Object getPreviousResultFormat() {
-    return result;
-  }
-
-  public Object getReturn() {
-    return results;
-  }
+  public abstract Object getReturn();
 
   public String getJobName() {
     return jobName;
@@ -262,11 +259,25 @@ public abstract class Job {
     return dateStarted;
   }
 
-  public Date getDateFinished() {
+  public synchronized void setDateStarted(Date startedAt) {
+    dateStarted = startedAt;
+  }
+
+  public synchronized Date getDateFinished() {
     return dateFinished;
   }
 
-  public void setResult(Object results) {
-    this.results = results;
+  public synchronized void setDateFinished(Date finishedAt) {
+    dateFinished = finishedAt;
+  }
+
+  public abstract void setResult(Object results);
+
+  public synchronized String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public synchronized void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
   }
 }
