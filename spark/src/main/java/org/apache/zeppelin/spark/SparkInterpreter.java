@@ -230,7 +230,8 @@ public class SparkInterpreter extends Interpreter {
   public Object getSparkSession() {
     synchronized (sharedInterpreterLock) {
       if (sparkSession == null) {
-        createSparkSession();
+        //createSparkSession();
+        createLightningSparkSession();
       }
       return sparkSession;
     }
@@ -380,6 +381,31 @@ public class SparkInterpreter extends Interpreter {
     }
 
     return sparkSession;
+  }
+
+  private Object createLightningSparkSession() {
+    String lightningConfFilePath = property.getProperty("com.zetaris.lightning.lightningConfFile");
+    String metaStoreConfFile = property.getProperty("com.zetaris.lightning.metaStoreConfFile");
+
+    if (lightningConfFilePath == null) {
+      throw new RuntimeException("com.zetaris.lightning.lightningConfFile is not set in property");
+    }
+
+    if (lightningConfFilePath == null || metaStoreConfFile == null) {
+      throw new RuntimeException("com.zetaris.lightning.metaStoreConfFile is not set in property");
+    }
+
+    try {
+      sparkSession = new LightningSparkSessionBuilder().
+              withConfiguration(lightningConfFilePath).
+              withMetaStore(metaStoreConfFile).
+              build();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    return sparkSession;
+
   }
 
   public SparkContext createSparkContext() {
