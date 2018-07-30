@@ -21,6 +21,7 @@ package org.apache.zeppelin.spark
 import java.io.File
 
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.hive.LightningSQLEnv
 import org.apache.spark.{JobProgressUtil, SparkConf, SparkContext}
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion
 import org.apache.zeppelin.interpreter.util.InterpreterOutputStream
@@ -121,7 +122,8 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
 
   protected def createSparkContext(): Unit = {
     if (isSparkSessionPresent()) {
-      spark2CreateContext()
+      //spark2CreateContext()
+      spark2CreateLightninghContext
     } else {
       spark1CreateContext()
     }
@@ -219,6 +221,39 @@ abstract class BaseSparkScalaInterpreter(val conf: SparkConf,
     sc.getClass.getMethod("uiWebUrl").invoke(sc).asInstanceOf[Option[String]] match {
       case Some(url) => sparkUrl = url
       case None =>
+    }
+
+    bind("spark", sparkSession.getClass.getCanonicalName, sparkSession, List("""@transient"""))
+    bind("sc", "org.apache.spark.SparkContext", sc, List("""@transient"""))
+    bind("sqlContext", "org.apache.spark.sql.SQLContext", sqlContext, List("""@transient"""))
+
+    interpret("import org.apache.spark.SparkContext._")
+    interpret("import spark.implicits._")
+    interpret("import spark.sql")
+    interpret("import org.apache.spark.sql.functions._")
+  }
+
+  private def spark2CreateLightninghContext(): Unit = {
+    val lightningConfFilePath = conf.get("com.zetaris.lightning.lightningConfFile")
+    val metaStoreConfFile = conf.get("com.zetaris.lightning.metaStoreConfFile")
+
+    if (lightningConfFilePath == null) {
+      throw new RuntimeException("com.zetaris.lightning.lightningConfFile is not set in property");
+    }
+
+    if (lightningConfFilePath == null || metaStoreConfFile == null) {
+      throw new RuntimeException("com.zetaris.lightning.metaStoreConfFile is not set in property");
+    }
+
+    try {
+      sparkSession = new LightningSparkSessionBuilder().
+        withConfiguration(lightningConfFilePath).
+        withMetaStore(metaStoreConfFile).
+        build()
+      sc = LightningSQLEnv.sparkContext
+      sqlContext = LightningSQLEnv.sqlContext
+    } catch {
+      case th: Throwable => throw new RuntimeException(th)
     }
 
     bind("spark", sparkSession.getClass.getCanonicalName, sparkSession, List("""@transient"""))
