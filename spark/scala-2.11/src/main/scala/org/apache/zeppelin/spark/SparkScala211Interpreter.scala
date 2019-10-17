@@ -38,7 +38,7 @@ import scala.tools.nsc.interpreter._
 class SparkScala211Interpreter(override val conf: SparkConf,
                                override val depFiles: java.util.List[String],
                                override val printReplOutput: java.lang.Boolean)
-  extends BaseSparkScalaInterpreter(conf, depFiles, printReplOutput) {
+  extends LightningEnabledSparkScalaInterpreter(conf, depFiles, printReplOutput) {
 
   import SparkScala211Interpreter._
 
@@ -86,6 +86,8 @@ class SparkScala211Interpreter(override val conf: SparkConf,
     sparkILoop.initializeSynchronous()
     loopPostInit(this)
     this.scalaCompleter = reader.completion.completer()
+
+    LOGGER.info("createSparkContext, super : " + getClass().getSuperclass().getName())
 
     createSparkContext()
   }
